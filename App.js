@@ -104,7 +104,7 @@ function HomePage(props) {
       <SearchPanel searchFunction={getReviews}/>
       <FlatList
         data={movies}
-        renderItem={(item) => MoviePanel(item, props)}
+        renderItem={MoviePanel}
         keyExtractor={item => item.id}
         ListFooterComponent = {Footer}
         ListFooterComponentStyle={styles.footer}
@@ -135,13 +135,13 @@ function SearchPanel(props){
     )
 }
 
-const MoviePanel = ({item}, props) => (
+const MoviePanel = ({item}) => (
       <View style={styles.panelBody2}>
         <View style={styles.text}>
           <Title title={item.title}/>
           <Author name={item.name}/>
           <PubDate date={item.date}/>
-          <Guide id={item.id} getMoreInfo={getMoreInfo} propsData = {props}/>
+          <Guide id={item.id}/>
         </View>
         <Poster source={item.source}/>
       </View>     
@@ -174,48 +174,32 @@ function PubDate(props){
     )
 }
 
-
-const getMoreInfo = (recipeId, propsData) => {
-  const [data, setData] = useState({})
-  console.log("Hello=================1212121212========")
-  const options = {
-    method: 'GET',
-    url: 'https://tasty.p.rapidapi.com/recipes/get-more-info',
-    params: {id: recipeId},
-    headers: {
-      'X-RapidAPI-Key': '5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998',
-      'X-RapidAPI-Host': 'tasty.p.rapidapi.com'
-    }
-  };
-
-  axios.request(options).then(function (response) {
-    // console.log(response.data);
-    // propsData.navigation.navigate('Calorie Counter', { text: "Home Screen" })
-      
-    // {propsData.route.params && (
-    //   <Text>Information from ajsdfajsdfj!</Text>
-    // )}
-    console.log(response.data.id)
-  }).catch(function (error) {
-    console.error(error);
-  });
-}
-
 function Guide(props){
   const [data, setData] = useState({})
 
-  console.log("Hello=========================", props.id, props.propsData)
+  const getMoreInfo = (recipeId) => {
+    const options = {
+      method: 'GET',
+      url: 'https://tasty.p.rapidapi.com/recipes/get-more-info',
+      params: {id: recipeId},
+      headers: {
+        'X-RapidAPI-Key': '5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998',
+        'X-RapidAPI-Host': 'tasty.p.rapidapi.com'
+      }
+    };
+
+    axios.request(options).then(function (response) {
+      console.log(response.data);
+    }).catch(function (error) {
+      console.error(error);
+    });
+  }
+  console.log("Hello=========================", props.id)
   return(
     <TouchableOpacity 
       //  onPress={props.getMoreInfo(props.id)}
     >
-     <Text style={styles.hide} onPress={()=>{getMoreInfo(props.id)
-    //   props.propsData.navigation.navigate('Calorie Counter', { text: "Home Screen" })
-      
-    // {props.propsData.route.params && (
-    //   <Text>Information from ajsdfajsdfj!</Text>
-    // )}
-    }} >Step-by-Step Guide</Text>
+     <Text style={styles.hide} onPress={()=>getMoreInfo(props.id)} >Step-by-Step Guide</Text>
      </TouchableOpacity>
     )
 }
