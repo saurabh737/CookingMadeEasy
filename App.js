@@ -5,6 +5,7 @@ import axios from 'axios';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import DropDownPicker from 'react-native-dropdown-picker';
+import { Video } from 'expo-av';
 
 const Stack = createNativeStackNavigator();
 
@@ -17,15 +18,48 @@ export default function App() {
         <Stack.Screen name="Splashpage" component={Splashpage} options={{headerShown: false}}/>
         <Stack.Screen name="All Recipes" component={HomePage} />
         <Stack.Screen name="Calorie Counter" component={CalorieCounter} />
-        <Stack.Screen name="sss" component={RecipeInfo} />
+        <Stack.Screen name="Details" component={RecipeInfo} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
 function RecipeInfo(props){
-
+  const video = React.useRef(null);
+  const [status, setStatus] = React.useState({});
+  // console.log(props.route.params.text)
+  const metadata = props.route.params.text;
+  return (
+    <View style={styles.homescreen}>
+      <Video
+        ref={video}
+        style={styles.video}
+        source={{
+          uri: props.route.params.text.video_url,
+        }}
+        useNativeControls
+        resizeMode="contain"
+        isLooping = "false"
+        onPlaybackStatusUpdate={status => setStatus(() => true)}
+      />
+      <Text> Instructions</Text>
+      <FlatList
+        data={metadata.instructions}
+        renderItem={InstrDisplay}
+        keyExtractor={item => item.id}
+      />
+    </View>
+    ) 
 }
+
+const InstrDisplay = ({item}, counter = 0) => (
+      <View >
+        <View >
+          <Text style={styles.status}> - {item.display_text}</Text>
+          {/* <Author name={counter+1}{item.display_text}/> */}
+        </View>
+      </View>     
+    )
 
 function Splashpage(props) {
   return (
@@ -73,7 +107,7 @@ function HomePage(props) {
 }).then((response) => {
       let movieList = response.data.results
       let movieArray = []
-
+      
       movieList.forEach((item, id)=>{
         let d = new Date(item.created_at*1000);
         let movieObject = {
@@ -83,6 +117,13 @@ function HomePage(props) {
           name: (item.description && item.description.length > 20) ? `${item.description.slice(0, 50)}...`: item.description,
           date:`${d.getMonth()+1}-${d.getDay()}-${d.getFullYear()}`,
           source:item.thumbnail_url?item.thumbnail_url:"",
+          metadata:{
+            instructions: item.instructions,
+            user_ratings: item.user_ratings,
+            tags: item.tags,
+            video_url: item.original_video_url ? item.original_video_url : item.video_url,
+            id: item.id
+          }
         }
 
         console.log(item.name, item.id)
@@ -104,7 +145,7 @@ function HomePage(props) {
       <SearchPanel searchFunction={getReviews}/>
       <FlatList
         data={movies}
-        renderItem={MoviePanel}
+        renderItem={(item) => MoviePanel(item, props)}
         keyExtractor={item => item.id}
         ListFooterComponent = {Footer}
         ListFooterComponentStyle={styles.footer}
@@ -135,13 +176,13 @@ function SearchPanel(props){
     )
 }
 
-const MoviePanel = ({item}) => (
+const MoviePanel = ({item}, props) => (
       <View style={styles.panelBody2}>
         <View style={styles.text}>
           <Title title={item.title}/>
           <Author name={item.name}/>
           <PubDate date={item.date}/>
-          <Guide id={item.id}/>
+          <Guide id={item.id} propsData = {props} metadata = {item.metadata}/>
         </View>
         <Poster source={item.source}/>
       </View>     
@@ -175,31 +216,38 @@ function PubDate(props){
 }
 
 function Guide(props){
-  const [data, setData] = useState({})
-
+  const [data, setData] = useState(null)
+  // setData(props.metadata)
   const getMoreInfo = (recipeId) => {
-    const options = {
-      method: 'GET',
-      url: 'https://tasty.p.rapidapi.com/recipes/get-more-info',
-      params: {id: recipeId},
-      headers: {
-        'X-RapidAPI-Key': '5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998',
-        'X-RapidAPI-Host': 'tasty.p.rapidapi.com'
-      }
-    };
+    // const options = {
+    //   method: 'GET',
+    //   url: 'https://tasty.p.rapidapi.com/recipes/get-more-info',
+    //   params: {id: recipeId},
+    //   headers: {
+    //     'X-RapidAPI-Key': '5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998',
+    //     'X-RapidAPI-Host': 'tasty.p.rapidapi.com'
+    //   }
+    // };
 
-    axios.request(options).then(function (response) {
-      console.log(response.data);
-    }).catch(function (error) {
-      console.error(error);
-    });
+    // axios.request(options).then(function (response) {
+    //   // let res = {
+    //   //   video: response.
+    //   // }
+    //   setData({'key': response.data.id})
+    // }).catch(function (error) {
+    //   console.error(error);
+    // });
+    setData(recipeId)
   }
+  useEffect(()=>{
+    data && props.propsData.navigation.navigate('Details', { text: data })
+  },[data])
   console.log("Hello=========================", props.id)
   return(
     <TouchableOpacity 
       //  onPress={props.getMoreInfo(props.id)}
     >
-     <Text style={styles.hide} onPress={()=>getMoreInfo(props.id)} >Step-by-Step Guide</Text>
+     <Text style={styles.hide} onPress={()=>getMoreInfo(props.metadata)} >Step-by-Step Guide</Text>
      </TouchableOpacity>
     )
 }
@@ -223,8 +271,7 @@ function AButton(props){
   return(
     <TouchableOpacity >
      <Text style={styles.status} id={props.aId} onClick={props.clickFunction}>{props.aCaption}</Text>
-    </TouchableOpacity>
-      // <a  href="#" style={styles.status} id={props.aId} onClick={props.clickFunction}>{props.aCaption}</a>
+</TouchableOpacity>
     )
 }
 
@@ -558,4 +605,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 10,
   },
+  backgroundVideo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+  },
+  video: {
+    alignSelf: 'center',
+    width: 320,
+    height: 200,
+  }
 });

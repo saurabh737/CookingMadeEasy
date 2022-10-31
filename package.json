@@ -17,7 +17,10 @@
     "expo-status-bar": "~1.4.0",
     "react": "18.0.0",
     "react-native": "0.69.6",
-    "react-native-dropdown-picker": "^5.4.2"
+    "react-native-dropdown-picker": "^5.4.2",
+    "react-native-jw-media-player": "^0.2.26",
+    "react-native-video": "^5.2.1",
+    "expo-av": "~12.0.4"
   },
   "devDependencies": {
     "@babel/core": "^7.12.9"
