@@ -69,13 +69,13 @@ function Splashpage(props) {
       <Image style={styles.homeImage} source={require('./spalash.png')}/>
     </View>
       <TouchableOpacity
-        style={styles.butto11}
+        style={styles.buttonHome}
         onPress={()=>props.navigation.navigate('All Recipes', { text: "All Recipes" })}
       >
         <Text style = {styles.appButtonText}>Explore Recipes</Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={styles.butto11}
+        style={styles.buttonHome}
         onPress={()=>props.navigation.navigate('Calorie Counter', { text: "Home Screen" })}
       >
         <Text style = {styles.appButtonText}>Calorie Counter</Text>
@@ -143,13 +143,16 @@ function HomePage(props) {
     <SafeAreaView style={styles.container}>
       {/* <Text style={styles.header}>Delicious Recipes</Text> */}
       <SearchPanel searchFunction={getReviews}/>
-      <FlatList
+      <View style={{flex:1, width: 550, marginLeft: 120}}>
+              <FlatList
         data={movies}
         renderItem={(item) => MoviePanel(item, props)}
         keyExtractor={item => item.id}
         ListFooterComponent = {Footer}
         ListFooterComponentStyle={styles.footer}
       />
+      </View>
+
       
       <StatusBar style="auto" />
     </SafeAreaView>
@@ -309,19 +312,22 @@ function CalorieCounter(props) {
       let res = response.data.data.goals;
       setMaintainWeight(res["maintain weight"])
       delete res["maintain weight"]
+      console.log(res)
       var calorieData = Object.keys(res).map(key => {
+
           res[key].title = key;
-          if (res['gain weight']){
-            res[ 'weight' ] = res[ 'gain weight' ];
-          delete res[ 'gain weight' ];
+          if (res[key]['gain weight']){
+            res[key][ 'weight' ] = res[key]['gain weight'];
+          delete res[key]['gain weight'];
           }else{
-            res[ 'weight' ] = res[ 'loss weight' ];
-          delete res[ 'loss weight' ];
+            res[key][ 'weight' ] = res[key]['loss weight'];
+          delete res[key]['loss weight'];
           }
+          
           return res[key];
       })
       calorieData.sort((a,b) => a.calory - b.calory)
-      console.log(calorieData)
+      console.log("Cal",calorieData)
       setCaldata(calorieData)
     });
   }
@@ -331,76 +337,90 @@ function CalorieCounter(props) {
       <View style={styles.middle}>
         <Text style={styles.calorieText}>How much should you eat?</Text>
       </View>
-      <View >
+      <View style={{marginHorizontal: 10, zIndex: 1,}}>
+        <View >
         <View style={styles.entries}>
-          <Text>Age: </Text>
-          <TextInput
+          <Text style={styles.textBold}>Age: </Text>
+          <View style={styles.inputWrapper}>
+                <TextInput
             style={styles.input}
             onChangeText={onChangeAge}
             placeholder="eg:23"
             keyboardType="numeric"
             value={age}
           />
+          </View>
+      
         </View>
       </View>
       <View >
         <View style={styles.entries}>
-          <Text>Height: </Text>
-          <TextInput
+          <Text style={styles.textBold}>Height: </Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
             style={styles.input}
             onChangeText={onChangeHeight}
             placeholder="eg:171 (in cm)"
             keyboardType="numeric"
             value={height}
-          />
+          /></View>
         </View>
       </View>
-      <View >
+      <View style={{zIndex: 1,}}>
         <View style={styles.entries}>
-          <Text>Gender: </Text>
+          <Text style={styles.textBold}>Gender: </Text>
           {/* <TextInput
             style={styles.input}
             onChangeText={onChangeGender}
             value={gender}
             placeholder={'eg: 23'}
           /> */}
-           <DropDownPicker
+          <View style={{paddingLeft: 10,marginRight: 195, zIndex: 1,}}>
+            <DropDownPicker
             open={open}
             value={gender}
             items={items}
             setOpen={setOpen}
             setValue={onChangeGender}
             setItems={setItems}
-
             theme="LIGHT"
             multiple={false}
+            dropDownStyle={{backgroundColor: "#fff",}}
             mode="BADGE"
             badgeDotColors={["#e76f51", "#00b4d8", "#e9c46a", "#e76f51", "#8ac926", "#00b4d8", "#e9c46a"]}
           />
         </View>
+          </View>
+   
       </View>
       <View >
         <View style={styles.entries}>
-          <Text>Weight: </Text>
-          <TextInput
+          <Text style={styles.textBold}>Weight: </Text>
+          <View style={styles.inputWrapper}>
+            <TextInput
             style={styles.input}
             onChangeText={onChangeWeight}
             placeholder="eg:70 (in kgs)"
             keyboardType="numeric"
             value={weight}
           />
+          </View>
+
         </View>
       </View>
+      </View>
+      
       <TouchableOpacity
         style={styles.butto11}
         onPress={calorieCounterFunc}
       ><Text style = {styles.appButtonText}>Calculate</Text>
       </TouchableOpacity>
-
+        
       <FlatList
         data={calData}
         renderItem={CaloriDisplay}
         keyExtractor={item => item.calory}
+        persistentScrollbar={true}
       />
     </SafeAreaView>
 
@@ -408,11 +428,10 @@ function CalorieCounter(props) {
 }
 
 const CaloriDisplay = ({item}) => (
-      <View >
-        <View >
-          <Title title={item.title}/>
-          <Author name={item.calory}/>
-          <PubDate date={item.weight}/>
+      <View style={{flex: 1}}>
+        <View style={{marginHorizontal: 20, alignItems: 'center', padding: 10,}}>
+          <Text style={styles.captionDisplay}>{item.title} ({item.weight})</Text>
+          <Text style={styles.status}>Daily calorie intake: {item.calory}</Text>
         </View>
       </View>     
     )
@@ -452,17 +471,19 @@ const styles = StyleSheet.create({
     padding: 3,
     marginVertical: 5,
     marginHorizontal: 0,
-  },captionDisplay:{
-    color: '#2F83D0',
-    fontSize: 18,
+  },
+  captionDisplay:{
+    color: '#F75A0D',
+    fontSize: 20,
+    fontWeight: 'bold',
     padding: 3,
-    marginVertical: 10,
+    marginVertical: 8,
     marginHorizontal: 5, 
   },status:{ 
-    color: 'gray',
-    fontSize: 16,
+    color: '#90593E',
+    fontSize: 20,
     padding: 3,
-    marginVertical: 0,
+    // marginVertical: 0,
     marginHorizontal: 5, 
   },hide:{
     color:'#5588c1',
@@ -549,7 +570,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#444444",
     borderRadius: 10,
     paddingVertical: 12,
-    paddingHorizontal: 50
+    paddingHorizontal: 40,
+    marginHorizontal: 110,
+  },
+    buttonHome: {
+    // alignItems: "center",
+    // backgroundColor: "#007AFF",
+    // padding: 5,
+    // fontSize:500,
+    margin:25,
+    elevation: 8,
+    backgroundColor: "#444444",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    marginHorizontal: 20,
   },
 
   appButtonText: {
@@ -562,45 +597,71 @@ const styles = StyleSheet.create({
   calorieScreen:{
     flex: 1,
     // justifyContent: "space-between",
-    justifyContent:"center",
-    alignItems: 'center',
+    // justifyContent:"center",
+    // alignItems: 'center',
     backgroundColor: "#fccdb6",
-    padding: 50,
+    // padding: 50,
     // margin: 10,
+    // marginHorizontal: 0,
   },
   middle: {
     // flex: 0.3,
-    backgroundColor: "grey",
-    borderWidth: 2,
+    backgroundColor: "#F49262",
+    // borderWidth: 2,
+    
     borderRadius:40,
-    borderStyle:'dashed',
+    // borderStyle:'dashed',
     // marginTop: 50,
     justifyContent:"center",
     alignItems: 'center',
-    alignContent: 'center',
-    width: 200, height: 50,
-    marginHorizontal: 100,
+    width: "90%", height: 50,
+    // marginHorizontal: 60,
+    // marginTop: 20,
+    margin: 20,
+    paddingHorizontal: 20,
     // marginVertical: 30
+    // shadowColor: 'black',
+    // elevation: 0.6,
+    // shadowRadius: 4,
+    // shadowOffset: {width: 10, height: 10,}
   },
   calorieText: {
-    fontSize: 14,
-    color: "blue",
+    fontSize: 20,
+    color: "#FDFAF9",
     fontWeight: "bold",
     alignSelf: "center",
     // textTransform: "uppercase"
   },
+  textBold: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    width: 80,
+    color:'#79452B',
+
+  },
   entries:{
+    // borderColor: 'black',
+    // borderWidth: 2,
     // justifyContent: "space-between",
     // flex: 1,
+    zIndex: 1,
     flexDirection: 'row',
     // width: "50%",
+    paddingHorizontal: 10,
     textAlign: "left",
     display: 'flex',
     justifyContent: "space-between",
     alignItems: "center"
   },
   input: {
-    height: 40,
+    fontSize: 18,
+
+    // margin: 12,
+    // borderWidth: 1,
+    // padding: 10,
+  },
+  inputWrapper:{
+    width: "80%",
     margin: 12,
     borderWidth: 1,
     padding: 10,
