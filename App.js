@@ -10,6 +10,7 @@ import { Fontisto } from '@expo/vector-icons';
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc } from "firebase/firestore";
 import { SearchBar, Card } from "react-native-elements";
+import { MaterialIcons, Octicons } from '@expo/vector-icons';
 
 
 const Stack = createNativeStackNavigator();
@@ -46,6 +47,18 @@ function RecipeInfo(props){
   const [status, setStatus] = React.useState({});
   // console.log(props.route.params.text)
   const metadata = props.route.params.text;
+	
+  const handlePlayAndPause = () => {  
+    setPlayerState((prevState) => ({
+       shouldPlay: !prevState.shouldPlay  
+    }));
+  }
+  
+  const handleVolume = () => {
+    setPlayerState(prevState => ({
+      mute: !prevState.mute,  
+    }));
+  }
   return (
     <View style={styles.homescreen}>
       <Video
@@ -55,10 +68,13 @@ function RecipeInfo(props){
           uri: props.route.params.text.video_url,
         }}
         useNativeControls
-        resizeMode="contain"
+        resizeMode="stretch"
         isLooping = "false"
+        shouldPlay
         onPlaybackStatusUpdate={status => setStatus(() => true)}
+        // onPlaybackStatusUpdate={updatePlaybackCallback}
       />
+
       <Text> Instructions</Text>
       <FlatList
         data={metadata.instructions}
@@ -229,14 +245,8 @@ function SearchPanel(props){
   const [text, setText] = useState("")
 
   return(
-      <View style={styles.panelBody}>              
-        {/* <TextInput
-          style={styles.searchInput}
-          placeholder="Enter Ingredient name"
-          onChangeText={(value)=>setText(value)}
-          value={text}
-        /> */}
-        <View style={styles.searchBarView}>
+    <View style={styles.panelBody}>              
+      <View style={styles.searchBarView}>
         <SearchBar
           Color="#ffff"
           containerStyle={styles.searchBar}
@@ -249,46 +259,22 @@ function SearchPanel(props){
           showCancel
           value={text}
         />
-    </View>
-        {/* <Button 
-          title="Search"
-          onPress={()=>{
-            props.searchFunction(text)
-            setText("")}
-          }/> */}
-          <TouchableOpacity
+      </View>
+      <TouchableOpacity
         onPress={() => {
-          /* Use Movie Review API to Search*/
-
           props.searchFunction(text);
           setText("");
         }}
       >
-        {/* <Text
-        >
-          Search
-        </Text> */}
         <View style={styles.searchButton}>
             <Text style={styles.searchButtonText}>Search</Text>
         </View>
       </TouchableOpacity>
-      </View>     
-    )
+    </View>     
+  )
 }
 
-const MoviePanel = ({item}, props) => (
-      <View style={styles.panelBody2}>
-        <View style={styles.text}>
-          <Title title={item.title}/>
-          <Author name={item.name}/>
-          <PubDate date={item.date}/>
-          <Guide id={item.id} propsData = {props} metadata = {item.metadata}/>
-        </View>
-        <Poster source={item.source}/>
-      </View>     
-    )
-
-const foodPanel = ({item}, props) =>(
+const foodPanel = ({item}, props, saveData, getData) =>(
   (
     <View style={styles.card1}>
       <View style={styles.map1}>
@@ -299,26 +285,16 @@ const foodPanel = ({item}, props) =>(
           <Text style={styles.subHeaderText1}>
             {item.title}
           </Text>
-          {/* <Text style={ styles.priceHigh }>
-            
-              <Fontisto name="like" size={20} color="green" />
-              {" "}{item.metadata.user_ratings.count_positive}{" "}
-              <Fontisto name="dislike" size={20} color="red" />
-              {" "}{item.metadata.user_ratings.count_negative}
-            
-          </Text> */}
         </View>
         <Text style={ styles.priceHigh1 }>
-            
-              <Fontisto name="like" size={18} color="green" />
-              {"  "}{item.metadata.user_ratings.count_positive}{"      "}
-              <Fontisto name="dislike" size={18} color="red" />
-              {"  "}{item.metadata.user_ratings.count_negative}
-            
-          </Text>
-        <Text style={{ color: "darkgrey" }}>
-          <Guide id={item.id} propsData = {props} metadata = {item.metadata}/> 
+          <Fontisto name="like" size={18} color="green" />
+          {"  "}{item.metadata.user_ratings.count_positive}{"      "}
+          <Fontisto name="dislike" size={18} color="red" />
+          {"  "}{item.metadata.user_ratings.count_negative}
         </Text>
+        {/* <Text style={{ color: "darkgrey", alignItems:'center' }}> */}
+        <Guide id={item.id} propsData = {props} metadata = {item.metadata}/> 
+        {/* </Text> */}
       </View>
     </View>
   )
@@ -353,26 +329,42 @@ function Guide(props){
   const [data, setData] = useState(null)
   // setData(props.metadata)
   const getMoreInfo = (recipeId) => {
-    setData(recipeId)
+    // await saveData({}, "instrpage")
+    const options = {
+      method: 'GET',
+      url: 'https://tasty.p.rapidapi.com/recipes/get-more-info',
+      params: {id: recipeId},
+      headers: {
+        'X-RapidAPI-Key': '5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998',
+        'X-RapidAPI-Host': 'tasty.p.rapidapi.com'
+      }
+    };
+
+    axios.request(options).then(function (response) {
+      // let res = {
+      //   video: response.
+      // }
+      setData({'key': response.data.id})
+    }).catch(function (error) {
+      console.error(error);
+    });
+    // setData(recipeId)
+    // setData([])
   }
   useEffect(()=>{
     data && props.propsData.navigation.navigate('Details', { text: data })
+    // setData([])
   },[data])
-  // console.log("Hello=========================", props.id)
+  // console.log("Hello=========================", props.saveData)
   return(
-    <TouchableOpacity 
-      //  onPress={props.getMoreInfo(props.id)}
-    >
-     <Text style={styles.hide} onPress={()=>getMoreInfo(props.metadata)} >Step-by-Step Guide</Text>
+    <View style={{alignItems:'center', justifyContent:"center"}}>
+      <TouchableOpacity>
+      <View style={styles.recipeViewButton}>
+        <Text style={styles.recipeViewText} onPress={()=>{getMoreInfo(props.metadata)}} >Step-by-Step Guide</Text>
+      </View>
      </TouchableOpacity>
+    </View>
     )
-}
-
-function Poster(props){
-  return(
-    <View style={styles.poster}>
-      <Image style={styles.image} source={{uri:props.source}}/>
-    </View>)
 }
 
 function ControlPanel(props){
@@ -390,7 +382,6 @@ function AButton(props){
 </TouchableOpacity>
     )
 }
-
 
 function CalorieCounter(props) {
   const [age, onChangeAge] = React.useState(null);
@@ -558,22 +549,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '86%',
-    // borderWidth: 1,
-    // borderColor: 'gray',
-    // borderRadius: 4,
     borderBottomColor: 'black',
-    padding: 3,
-    marginVertical: 5,
+    paddingTop: 3,
     marginHorizontal: 0,
   },
   searchInput:{
     width: "75%",
-    //  borderBottomColor: '#000000',
     paddingBottom: 20,
-    // alignSelf: "flex-start",
-    // fontSize: 15,
-    // placeholderTextColor: "white"
-    // height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     borderColor: "#000000",
@@ -627,8 +609,9 @@ const styles = StyleSheet.create({
   },
   hide:{
     color:'#5588c1',
-    fontSize: 14,
-    padding: 3,
+    fontSize: 20,
+    // padding: 5,
+    marginTop: 10,
     marginVertical: 0,
     marginHorizontal: 5,
   },
@@ -820,8 +803,9 @@ const styles = StyleSheet.create({
   },
   video: {
     alignSelf: 'center',
-    width: 320,
-    height: 200,
+    marginTop:10,
+    width: '90%',
+    height: 250,
   },
   card: {
     // padding: 20,
@@ -971,5 +955,32 @@ const styles = StyleSheet.create({
   backgroundImage:{
     flex: 1,
     justifyContent: "center"
+  },
+  recipeViewButton: {
+    // marginBottom: 30,
+    width: '100%',
+    alignItems: 'center',
+    // backgroundColor: '#2196F3'
+    // backgroundColor: "#F49262",
+    backgroundColor:'#fff',
+    borderRadius: 15,
+    marginTop: 10
+  },
+  recipeViewText: {
+    textAlign: 'center',
+    padding: 13,
+    color: '#79452B',
+    fontSize: 18
+  },
+  controlBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 45,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   }
 });
