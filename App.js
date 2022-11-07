@@ -1,17 +1,35 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet,ImageBackground, Text, View, Image, TouchableOpacity, TextInput, FlatList, Button, SafeAreaView } from 'react-native';
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import DropDownPicker from 'react-native-dropdown-picker';
-import { Video } from 'expo-av';
-import { Fontisto } from '@expo/vector-icons';
+import { StatusBar } from "expo-status-bar";
+import {
+  StyleSheet,
+  ImageBackground,
+  Text,
+  View,
+  Image,
+  TouchableOpacity,
+  TextInput,
+  FlatList,
+  SafeAreaView,
+  ActivityIndicator,
+  ScrollView,
+  Keyboard,
+} from "react-native";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import DropDownPicker from "react-native-dropdown-picker";
+import { Video } from "expo-av";
+import { Fontisto } from "@expo/vector-icons";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc } from "firebase/firestore";
-import { SearchBar, Card } from "react-native-elements";
-import { MaterialIcons, Octicons } from '@expo/vector-icons';
-
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+} from "firebase/firestore";
+import { SearchBar } from "react-native-elements";
 
 const Stack = createNativeStackNavigator();
 
@@ -21,19 +39,23 @@ const firebaseConfig = {
   projectId: "w11c2-df037",
   storageBucket: "w11c2-df037.appspot.com",
   messagingSenderId: "117919717569",
-  appId: "1:117919717569:web:87c842d71587c92ed7dc40"
+  appId: "1:117919717569:web:87c842d71587c92ed7dc40",
 };
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let foodConstURL = "https://tasty.p.rapidapi.com/recipes/list"
+let foodConstURL = "https://tasty.p.rapidapi.com/recipes/list";
 
 export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Splashpage">
-        <Stack.Screen name="Splashpage" component={Splashpage} options={{headerShown: false}}/>
+        <Stack.Screen
+          name="Splashpage"
+          component={Splashpage}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen name="All Recipes" component={HomePage} />
         <Stack.Screen name="Calorie Counter" component={CalorieCounter} />
         <Stack.Screen name="Details" component={RecipeInfo} />
@@ -42,210 +64,370 @@ export default function App() {
   );
 }
 
-function RecipeInfo(props){
+function RecipeInfo(props) {
   const video = React.useRef(null);
-  const [status, setStatus] = React.useState({});
-  // console.log(props.route.params.text)
-  const metadata = props.route.params.text;
-	
-  const handlePlayAndPause = () => {  
-    setPlayerState((prevState) => ({
-       shouldPlay: !prevState.shouldPlay  
-    }));
-  }
-  
-  const handleVolume = () => {
-    setPlayerState(prevState => ({
-      mute: !prevState.mute,  
-    }));
-  }
-  return (
-    <View style={styles.homescreen}>
-      <Video
-        ref={video}
-        style={styles.video}
-        source={{
-          uri: props.route.params.text.video_url,
-        }}
-        useNativeControls
-        resizeMode="stretch"
-        isLooping = "false"
-        shouldPlay
-        onPlaybackStatusUpdate={status => setStatus(() => true)}
-        // onPlaybackStatusUpdate={updatePlaybackCallback}
-      />
+  const propsData = props.route.params.text;
+  const [loader, setLoader] = React.useState(true);
+  const [status, setStatus] = React.useState(null);
+  const [recipeData, setRecipeData] = useState(null);
+  const saveRecipeData = async (foodObj, recipeId) => {
+    await setDoc(doc(db, "recipeInfo", recipeId.toString()), foodObj);
+  };
 
-      <Text> Instructions</Text>
-      <FlatList
-        data={metadata.instructions}
-        // renderItem={({ item,index }) => {InstrDisplay}}
-        renderItem = {({ item, index }) => {
-                console.log("item is",item);
-                // var array = JSON.parse(item);
-          return(
-            <View >
-              <View >
-                <Text style={styles.status}> {index+1}. {item}</Text>
-                {/* <Author name={counter+1}{item.display_text}/> */}
-              </View>
-            </View> 
-          )
-        } 
+  const getRecipeData = async (recipeId) => {
+    try {
+      const docRef = doc(db, "recipeInfo", recipeId.toString());
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return docSnap.data();
+      } else {
+        return null;
       }
-        keyExtractor={item => item.id}
-      />
+    } catch (error) {
+      console.log(error);
+      return null;
+    }
+  };
+
+  const getRecipeInfo = (recipeId) => {
+    const options = {
+      method: "GET",
+      url: "https://tasty.p.rapidapi.com/recipes/get-more-info",
+      params: { id: recipeId },
+      headers: {
+        "X-RapidAPI-Key": "5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998",
+        "X-RapidAPI-Host": "tasty.p.rapidapi.com",
+      },
+    };
+
+    axios
+      .request(options)
+      .then(function (response) {
+        response = response.data;
+        let instrArr = [];
+        response.instructions.forEach((instr, id) => {
+          instrArr.push({
+            id: id,
+            text: instr.display_text,
+          });
+        });
+        let ingredients = [];
+        response.sections[0].components.forEach((ingre, id) => {
+          ingredients.push({
+            id: ingre.id,
+            text: ingre.raw_text,
+          });
+        });
+        let recipeSavaData = {
+          name: response.name,
+          serving: `${response.num_servings} people`,
+          video: response.original_video_url
+            ? response.original_video_url
+            : response.video_url,
+          instructions: instrArr,
+          image: response.thumbnail_url ? response.thumbnail_url : "",
+          ingredients: ingredients,
+        };
+        saveRecipeData(recipeSavaData, recipeId);
+        setRecipeData(recipeSavaData);
+        setLoader(false);
+      })
+      .catch(function (error) {
+        console.error(error);
+      });
+  };
+
+  useEffect(() => {
+    (async () => {
+      let recipeInfo = await getRecipeData(props.route.params.text.id);
+      if (recipeInfo) {
+        setRecipeData(recipeInfo);
+        setLoader(false);
+      } else getRecipeInfo(props.route.params.text.id);
+    })();
+  }, []);
+
+  return (
+    <View style={{ flex: 1 }}>
+      {loader ? (
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          <ActivityIndicator size="large" color="#F49262" />
+        </View>
+      ) : (
+        <SafeAreaView style={styles.recipeInfoContainer}>
+          {/* <ScrollView style={styles.scrollView}> */}
+          <View style={styles.recipeInfoScreen}>
+            <View style={styles.recipeTitle}>
+              <Text style={styles.recipeTitleText}>{recipeData.name}</Text>
+            </View>
+            {propsData.user_ratings.count_positive /
+              (propsData.user_ratings.count_positive +
+                propsData.user_ratings.count_negative) >
+            0 ? (
+              <View style={styles.recipeLikeRate}>
+                <Text style={styles.recipeLikeRateText}>
+                  {Math.ceil(
+                    (propsData.user_ratings.count_positive /
+                      (propsData.user_ratings.count_positive +
+                        propsData.user_ratings.count_negative)) *
+                      100
+                  )}
+                  % would make it again
+                </Text>
+              </View>
+            ) : (
+              ""
+            )}
+
+            <ScrollView style={styles.scrollView}>
+              <Video
+                ref={video}
+                style={styles.video}
+                source={{
+                  uri: recipeData.video,
+                }}
+                useNativeControls
+                resizeMode="stretch"
+                isLooping="false"
+                shouldPlay
+                onPlaybackStatusUpdate={(status) => setStatus(() => true)}
+              />
+              <View style={styles.recipeIngredients}>
+                <Text style={styles.recipeIngredientsText}>Ingridents</Text>
+                <Text style={styles.recipeServingText}>
+                  ( for {recipeData.serving} )
+                </Text>
+                <SafeAreaView style={{ flex: 1 }}>
+                  <FlatList
+                    data={recipeData.ingredients}
+                    renderItem={ingredientsDisplay}
+                    keyExtractor={(item) => item.id}
+                  />
+                </SafeAreaView>
+              </View>
+              <View style={{ marginTop: 20 }}>
+                <Text style={styles.recipeIngredientsText}> Instructions</Text>
+              </View>
+              <SafeAreaView style={{ flex: 1 }}>
+                <FlatList
+                  data={recipeData.instructions}
+                  renderItem={InstrDisplay}
+                  keyExtractor={(item) => item.id}
+                />
+              </SafeAreaView>
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      )}
     </View>
-    ) 
+  );
 }
 
-const InstrDisplay = ({item}, counter = 0) => (
-      <View >
-        <View >
-          <Text style={styles.status}> - {item.display_text}</Text>
-          {/* <Author name={counter+1}{item.display_text}/> */}
-        </View>
-      </View>     
-    )
+const InstrDisplay = ({ item }) => (
+  <View>
+    <View style={styles.instructions}>
+      <Text style={styles.instructionsText}>
+        {" "}
+        {item.id + 1}. {item.text}
+      </Text>
+    </View>
+  </View>
+);
+
+const ingredientsDisplay = ({ item }) => (
+  <View>
+    <View style={styles.ingredients}>
+      <Text style={styles.ingredientsText}>{item.text}</Text>
+    </View>
+  </View>
+);
 
 function Splashpage(props) {
   return (
-    <View style={{flex:1,}}>
-      <ImageBackground source={require("./assets/AdobeStock_141195680.jpeg")}  resizeMode="cover" style={styles.backgroundImage}>
-    <View style={styles.homescreen}>
-      
-      {/* <Text style={styles.welcome} onPress={props.clickFunction}>Cooking Made Easy</Text> */}
-      <View style={styles.homeposter}>
-      <Image style={styles.homeImage} source={require('./assets/logo-no-background.png')}/>
-    </View>
-      <TouchableOpacity
-        style={styles.buttonHome}
-        onPress={()=>props.navigation.navigate('All Recipes', { text: "All Recipes" })}
+    <View style={{ flex: 1 }}>
+      <ImageBackground
+        source={require("./assets/Splash_image_try.jpg")}
+        resizeMode="cover"
+        style={styles.backgroundImage}
       >
-        <Text style = {styles.appButtonText}>Explore Recipes</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.buttonHome}
-        onPress={()=>props.navigation.navigate('Calorie Counter', { text: "Home Screen" })}
-      >
-        <Text style = {styles.appButtonText}>Calorie Counter</Text>
-      </TouchableOpacity>
-      
-      {props.route.params && (
-        <Text>Information from {props.route.params.text}!</Text>
-      )}
-      </View>
+        <View style={styles.homescreen}>
+          {/* <Text style={styles.welcome} onPress={props.clickFunction}>Cooking Made Easy</Text> */}
+          <View style={styles.homeposter}>
+            <Image
+              style={styles.homeImage}
+              source={require("./assets/logo-no-background.png")}
+            />
+          </View>
+          <View style={{ marginVertical: 20 }}>
+            <TouchableOpacity
+              style={styles.buttonHome}
+              onPress={() =>
+                props.navigation.navigate("All Recipes", {
+                  text: "All Recipes",
+                })
+              }
+            >
+              <Text style={styles.appButtonText}>Explore Recipes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.buttonHome}
+              onPress={() =>
+                props.navigation.navigate("Calorie Counter", {
+                  text: "Home Screen",
+                })
+              }
+            >
+              <Text style={styles.appButtonText}>Calorie Counter</Text>
+            </TouchableOpacity>
+
+            {props.route.params && (
+              <Text>Information from {props.route.params.text}!</Text>
+            )}
+          </View>
+        </View>
       </ImageBackground>
     </View>
   );
 }
 
 function HomePage(props) {
-  const [movies, setMovies] = useState([])
+  const [movies, setMovies] = useState([]);
+  const [homeLoader, sethomeLoader] = useState(true);
 
-  const saveData = async(foodObj)=>{
-    // console.log("Trying to save", JSON.stringify(foodObj ))
+  const saveData = async (foodObj) => {
     await setDoc(doc(db, "food", foodObj.id.toString()), foodObj);
-  }
+  };
 
-  const getData = async()=>{
+  const getData = async () => {
     const querySnapshot = await getDocs(collection(db, "food"));
-    let movieRes = []
-    querySnapshot.forEach(doc => {
+    let movieRes = [];
+    querySnapshot.forEach((doc) => {
       // console.log(doc.id, '=>', doc.data());
-      movieRes.push(doc.data())
+      movieRes.push(doc.data());
     });
-    return movieRes
-  }
+    return movieRes;
+  };
 
   const getReviews = (searchKey) => {
+    sethomeLoader(true);
     let foodURL = foodConstURL;
-    if (searchKey.length > 0){
-      foodURL = `${foodConstURL}?from=0&size=60&q=${searchKey}`
-    }else{
-      foodURL = `${foodConstURL}?from=0&size=300` 
+    if (searchKey.length > 0) {
+      foodURL = `${foodConstURL}?from=0&size=60&q=${searchKey}`;
+    } else {
+      foodURL = `${foodConstURL}?from=0&size=300`;
     }
-    console.log(foodURL)
+    console.log(foodURL);
     axios({
-    method: 'get',
-    url: foodURL,
-    headers: {
-      'X-RapidAPI-Key': '5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998',
-      'X-RapidAPI-Host': 'tasty.p.rapidapi.com'
-    }
+      method: "get",
+      url: foodURL,
+      headers: {
+        "X-RapidAPI-Key": "5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998",
+        "X-RapidAPI-Host": "tasty.p.rapidapi.com",
+      },
     }).then((response) => {
-      let movieList = response.data.results
-      let movieArray = []
-      console.log(movieList.length,"===============================")
-      movieList.forEach((item, id)=>{
-        let d = new Date(item.created_at*1000);
-        let instArr = []
-        if (item.name && item.thumbnail_url && (item.original_video_url || item.video_url) && item.instructions){
+      let movieList = response.data.results;
+      let movieArray = [];
+      // console.log(movieList.length,"===============================")
+      movieList.forEach((item, id) => {
+        let d = new Date(item.created_at * 1000);
+        let instArr = [];
+        if (
+          item.name &&
+          item.thumbnail_url &&
+          (item.original_video_url || item.video_url) &&
+          item.instructions
+        ) {
           item.instructions.forEach((instr, id) => {
-            instArr.push(instr.display_text)
-          })
+            instArr.push(instr.display_text);
+          });
           let movieObject = {
-          id:item.id,
-          key:item.id,
-          title:item.name,
-          name: (item.description && item.description.length > 20) ? `${item.description.slice(0, 50)}...`: item.description,
-          date:`${d.getMonth()+1}-${d.getDay()}-${d.getFullYear()}`,
-          source:item.thumbnail_url?item.thumbnail_url:"",
-          metadata:{
-            instructions: instArr,
-            user_ratings: item.user_ratings,
-            tags: item.tags,
-            video_url: item.original_video_url ? item.original_video_url : item.video_url,
-            id: item.id
+            id: item.id,
+            key: item.id,
+            title: item.name,
+            name:
+              item.description && item.description.length > 20
+                ? `${item.description.slice(0, 50)}...`
+                : item.description,
+            date: `${d.getMonth() + 1}-${d.getDay()}-${d.getFullYear()}`,
+            source: item.thumbnail_url ? item.thumbnail_url : "",
+            metadata: {
+              instructions: instArr,
+              user_ratings: item.user_ratings,
+              tags: item.tags,
+              video_url: item.original_video_url
+                ? item.original_video_url
+                : item.video_url,
+              id: item.id,
+            },
+          };
+          console.log(item.name, item.id);
+          if (!(searchKey.length > 0)) {
+            saveData(movieObject);
           }
+          movieArray.push(movieObject);
         }
-        console.log(item.name, item.id)
-        if (!(searchKey.length > 0)){
-          saveData(movieObject)
-        }
-          movieArray.push(movieObject)
-        } 
-      })
-      movieArray.sort((a,b) => b.metadata.user_ratings.count_positive - a.metadata.user_ratings.count_positive)
+      });
+      movieArray.sort(
+        (a, b) =>
+          b.metadata.user_ratings.count_positive -
+          a.metadata.user_ratings.count_positive
+      );
 
-      setMovies([...movieArray])
+      setMovies([...movieArray]);
+      sethomeLoader(false);
     });
+  };
+
+  const [suggestion, setSuggestion] = useState(null);
+
+  function searchSuggestion(text) {
+    setSuggestion([
+      { id: 1, dText: "Chicken" },
+      { id: 2, dText: "Fish" },
+    ]);
+    console.log(suggestion);
   }
 
-  useEffect(()=>{
-
-    // getReviews("")
-    (async()=>{
-      let movieArray = await getData()
-      if (movieArray.length !== 0)
-        setMovies([...movieArray])
-      else
-        getReviews("")
-      })()
-
-  },[])
+  useEffect(() => {
+    (async () => {
+      let movieArray = await getData();
+      if (movieArray.length !== 0) {
+        setMovies([...movieArray]);
+        sethomeLoader(false);
+      } else {
+        getReviews("");
+      }
+    })();
+  }, []);
 
   return (
     <SafeAreaView style={styles.containerFoodPanel}>
-      <SearchPanel searchFunction={getReviews}/>
+      <SearchPanel
+        searchFunction={getReviews}
+        searchSuggestion={searchSuggestion}
+      />
+      {homeLoader ? (
+        <View style={{ flex: 1, justifyContent: "center" }}>
+          <ActivityIndicator size="large" color="#F49262" />
+        </View>
+      ) : (
         <FlatList
           data={movies}
           renderItem={(item) => foodPanel(item, props)}
-          keyExtractor={item => item.id}
-          ListFooterComponent = {Footer}
-          // horizontal={false}
-          // numColumns={2}
-          // ListFooterComponentStyle={styles.footer}
+          keyExtractor={(item) => item.id}
+          ListFooterComponent={Footer}
         />
+      )}
       <StatusBar style="auto" />
     </SafeAreaView>
   );
 }
 
-function SearchPanel(props){
-  const [text, setText] = useState("")
+function SearchPanel(props) {
+  const [text, setText] = useState("");
 
-  return(
-    <View style={styles.panelBody}>              
+  return (
+    <View style={styles.panelBody}>
       <View style={styles.searchBarView}>
         <SearchBar
           Color="#ffff"
@@ -255,132 +437,90 @@ function SearchPanel(props){
           round
           searchIcon={{ color: "#fff", solid: true, size: 35 }}
           inputStyle={{ color: "#fff" }}
-          onChangeText={(value)=>setText(value)}
+          // onChangeText={(value)=>setText(value)}
+          onChangeText={(value) => {
+            setText(value);
+            props.searchSuggestion(value);
+          }}
+          onSubmitEditing={() => {
+            props.searchFunction(text);
+          }}
           showCancel
           value={text}
         />
       </View>
       <TouchableOpacity
         onPress={() => {
+          Keyboard.dismiss();
           props.searchFunction(text);
           setText("");
         }}
       >
         <View style={styles.searchButton}>
-            <Text style={styles.searchButtonText}>Search</Text>
+          <Text style={styles.searchButtonText}>Search</Text>
         </View>
       </TouchableOpacity>
-    </View>     
-  )
+    </View>
+  );
 }
 
-const foodPanel = ({item}, props, saveData, getData) =>(
-  (
-    <View style={styles.card1}>
-      <View style={styles.map1}>
-        <Image resizeMode= "cover" style={styles.foodImage1} source={{uri:item.source}}/>
+const foodPanel = ({ item }, props, saveData, getData) => (
+  <View style={styles.card1}>
+    <View style={styles.map1}>
+      <Image
+        resizeMode="cover"
+        style={styles.foodImage1}
+        source={{ uri: item.source }}
+      />
+    </View>
+    <View style={styles.header1}>
+      <View style={styles.subHeader1}>
+        <Text style={styles.subHeaderText1}>{item.title}</Text>
       </View>
-      <View style={styles.header1}>
-        <View style={styles.subHeader1}>
-          <Text style={styles.subHeaderText1}>
-            {item.title}
+      <Text style={styles.priceHigh1}>
+        <Fontisto name="like" size={18} color="green" />
+        {"  "}
+        {item.metadata.user_ratings.count_positive}
+        {"      "}
+        <Fontisto name="dislike" size={18} color="red" />
+        {"  "}
+        {item.metadata.user_ratings.count_negative}
+      </Text>
+      {/* <Text style={{ color: "darkgrey", alignItems:'center' }}> */}
+      <Guide id={item.id} propsData={props} metadata={item.metadata} />
+      {/* </Text> */}
+    </View>
+  </View>
+);
+function Footer(props) {
+  return (
+    <TouchableOpacity style={styles.footer}>
+      <Text style={styles.status} onPress={props.clickFunction}>
+        more
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function Guide(props) {
+  return (
+    <View style={{ alignItems: "center", justifyContent: "center" }}>
+      <TouchableOpacity>
+        <View style={styles.recipeViewButton}>
+          <Text
+            style={styles.recipeViewText}
+            onPress={() => {
+              props.propsData.navigation.navigate("Details", {
+                text: props.metadata,
+              });
+            }}
+          >
+            Step-by-Step Guide
           </Text>
         </View>
-        <Text style={ styles.priceHigh1 }>
-          <Fontisto name="like" size={18} color="green" />
-          {"  "}{item.metadata.user_ratings.count_positive}{"      "}
-          <Fontisto name="dislike" size={18} color="red" />
-          {"  "}{item.metadata.user_ratings.count_negative}
-        </Text>
-        {/* <Text style={{ color: "darkgrey", alignItems:'center' }}> */}
-        <Guide id={item.id} propsData = {props} metadata = {item.metadata}/> 
-        {/* </Text> */}
-      </View>
+      </TouchableOpacity>
     </View>
-  )
-)
-function Footer(props){
-  return(
-    <TouchableOpacity style={styles.footer}>
-     <Text style={styles.status} onPress={props.clickFunction}>more</Text>
-    </TouchableOpacity>
-    )
-}
-
-function Title(props){
-  return(
-      <Text style={styles.captionDisplay}>{props.title}</Text>
-    )
-}
-
-function Author(props){
-  return(
-    <Text style={styles.status}>{props.name}</Text>
-    )
-}
-
-function PubDate(props){
-  return(
-    <Text style={styles.status}>{props.date}</Text>
-    )
-}
-
-function Guide(props){
-  const [data, setData] = useState(null)
-  // setData(props.metadata)
-  const getMoreInfo = (recipeId) => {
-    // await saveData({}, "instrpage")
-    const options = {
-      method: 'GET',
-      url: 'https://tasty.p.rapidapi.com/recipes/get-more-info',
-      params: {id: recipeId},
-      headers: {
-        'X-RapidAPI-Key': '5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998',
-        'X-RapidAPI-Host': 'tasty.p.rapidapi.com'
-      }
-    };
-
-    axios.request(options).then(function (response) {
-      // let res = {
-      //   video: response.
-      // }
-      setData({'key': response.data.id})
-    }).catch(function (error) {
-      console.error(error);
-    });
-    // setData(recipeId)
-    // setData([])
-  }
-  useEffect(()=>{
-    data && props.propsData.navigation.navigate('Details', { text: data })
-    // setData([])
-  },[data])
-  // console.log("Hello=========================", props.saveData)
-  return(
-    <View style={{alignItems:'center', justifyContent:"center"}}>
-      <TouchableOpacity>
-      <View style={styles.recipeViewButton}>
-        <Text style={styles.recipeViewText} onPress={()=>{getMoreInfo(props.metadata)}} >Step-by-Step Guide</Text>
-      </View>
-     </TouchableOpacity>
-    </View>
-    )
-}
-
-function ControlPanel(props){
-  return(
-    <View style={styles.panelAdd}>
-      <AButton aId="more-review" aCaption="More Reviews +" clickFunction={props.movieFunction}/>
-      <AButton aId="show-posters" aCaption="Show Posters" clickFunction={props.showFunction}/>
-    </View>)
-}
-
-function AButton(props){
-  return(
-    <TouchableOpacity >
-     <Text style={styles.status} id={props.aId} onClick={props.clickFunction}>{props.aCaption}</Text>
-</TouchableOpacity>
-    )
+  );
 }
 
 function CalorieCounter(props) {
@@ -391,309 +531,298 @@ function CalorieCounter(props) {
   const [weight, onChangeWeight] = React.useState(null);
   const [MaintainWeight, setMaintainWeight] = React.useState(0);
   const [items, setItems] = useState([
-    {label: 'Male', value: 'male'},
-    {label: 'Female', value: 'female'},
+    { label: "Male", value: "male" },
+    { label: "Female", value: "female" },
   ]);
-  const [calData, setCaldata] = React.useState([])
+  const [calData, setCaldata] = React.useState([]);
 
   const calorieCounterFunc = () => {
-    const calorieUrl = "https://fitness-calculator.p.rapidapi.com/dailycalorie"
+    const calorieUrl = "https://fitness-calculator.p.rapidapi.com/dailycalorie";
     axios({
-      method: 'get',
+      method: "get",
       url: calorieUrl,
       params: {
         age: age.toString(),
         gender: gender,
         height: height.toString(),
         weight: weight.toString(),
-        activitylevel: 'level_1'
+        activitylevel: "level_1",
       },
       headers: {
-        'X-RapidAPI-Key': '5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998',
-        'X-RapidAPI-Host': 'fitness-calculator.p.rapidapi.com'
-      }
+        "X-RapidAPI-Key": "5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998",
+        "X-RapidAPI-Host": "fitness-calculator.p.rapidapi.com",
+      },
     }).then((response) => {
       let res = response.data.data.goals;
-      setMaintainWeight(res["maintain weight"])
-      delete res["maintain weight"]
-      console.log(res)
-      var calorieData = Object.keys(res).map(key => {
+      setMaintainWeight(res["maintain weight"]);
+      delete res["maintain weight"];
+      console.log(res);
+      var calorieData = Object.keys(res).map((key) => {
+        res[key].title = key;
+        if (res[key]["gain weight"]) {
+          res[key]["weight"] = res[key]["gain weight"];
+          delete res[key]["gain weight"];
+        } else {
+          res[key]["weight"] = res[key]["loss weight"];
+          delete res[key]["loss weight"];
+        }
 
-          res[key].title = key;
-          if (res[key]['gain weight']){
-            res[key][ 'weight' ] = res[key]['gain weight'];
-          delete res[key]['gain weight'];
-          }else{
-            res[key][ 'weight' ] = res[key]['loss weight'];
-          delete res[key]['loss weight'];
-          }
-          
-          return res[key];
-      })
-      calorieData.sort((a,b) => a.calory - b.calory)
-      console.log("Cal",calorieData)
-      setCaldata(calorieData)
+        return res[key];
+      });
+      calorieData.sort((a, b) => a.calory - b.calory);
+      console.log("Cal", calorieData);
+      setCaldata(calorieData);
     });
-  }
+  };
 
   return (
     <SafeAreaView style={styles.calorieScreen}>
       <View style={styles.middle}>
         <Text style={styles.calorieText}>How much should you eat?</Text>
       </View>
-      <View style={{marginHorizontal: 10, zIndex: 1,}}>
-        <View >
-        <View style={styles.entries}>
-          <Text style={styles.textBold}>Age: </Text>
-          <View style={styles.inputWrapper}>
-                <TextInput
-            style={styles.input}
-            onChangeText={onChangeAge}
-            placeholder="eg:23"
-            keyboardType="numeric"
-            value={age}
-          />
+      <View style={{ marginHorizontal: 10, zIndex: 1 }}>
+        <View>
+          <View style={styles.entries}>
+            <Text style={styles.textBold}>Age: </Text>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                onChangeText={onChangeAge}
+                placeholder="eg:23"
+                keyboardType="numeric"
+                value={age}
+              />
+            </View>
           </View>
-      
+        </View>
+        <View>
+          <View style={styles.entries}>
+            <Text style={styles.textBold}>Height: </Text>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                onChangeText={onChangeHeight}
+                placeholder="eg:171 (in cm)"
+                keyboardType="numeric"
+                value={height}
+              />
+            </View>
+          </View>
+        </View>
+        <View style={{ zIndex: 1 }}>
+          <View style={styles.entries}>
+            <Text style={styles.textBold}>Gender: </Text>
+            <View style={{ paddingLeft: 10, marginRight: 195, zIndex: 1 }}>
+              <DropDownPicker
+                open={open}
+                value={gender}
+                items={items}
+                setOpen={setOpen}
+                setValue={onChangeGender}
+                setItems={setItems}
+                theme="LIGHT"
+                multiple={false}
+                dropDownStyle={{ backgroundColor: "#fff" }}
+                mode="BADGE"
+                badgeDotColors={[
+                  "#e76f51",
+                  "#00b4d8",
+                  "#e9c46a",
+                  "#e76f51",
+                  "#8ac926",
+                  "#00b4d8",
+                  "#e9c46a",
+                ]}
+              />
+            </View>
+          </View>
+        </View>
+        <View>
+          <View style={styles.entries}>
+            <Text style={styles.textBold}>Weight: </Text>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                onChangeText={onChangeWeight}
+                placeholder="eg:70 (in kgs)"
+                keyboardType="numeric"
+                value={weight}
+              />
+            </View>
+          </View>
         </View>
       </View>
-      <View >
-        <View style={styles.entries}>
-          <Text style={styles.textBold}>Height: </Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-            style={styles.input}
-            onChangeText={onChangeHeight}
-            placeholder="eg:171 (in cm)"
-            keyboardType="numeric"
-            value={height}
-          /></View>
-        </View>
-      </View>
-      <View style={{zIndex: 1,}}>
-        <View style={styles.entries}>
-          <Text style={styles.textBold}>Gender: </Text>
-          <View style={{paddingLeft: 10,marginRight: 195, zIndex: 1,}}>
-            <DropDownPicker
-            open={open}
-            value={gender}
-            items={items}
-            setOpen={setOpen}
-            setValue={onChangeGender}
-            setItems={setItems}
-            theme="LIGHT"
-            multiple={false}
-            dropDownStyle={{backgroundColor: "#fff",}}
-            mode="BADGE"
-            badgeDotColors={["#e76f51", "#00b4d8", "#e9c46a", "#e76f51", "#8ac926", "#00b4d8", "#e9c46a"]}
-          />
-        </View>
-          </View>
-   
-      </View>
-      <View >
-        <View style={styles.entries}>
-          <Text style={styles.textBold}>Weight: </Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-            style={styles.input}
-            onChangeText={onChangeWeight}
-            placeholder="eg:70 (in kgs)"
-            keyboardType="numeric"
-            value={weight}
-          />
-          </View>
 
-        </View>
-      </View>
-      </View>
-      
-      <TouchableOpacity
-        style={styles.butto11}
-        onPress={calorieCounterFunc}
-      ><Text style = {styles.appButtonText}>Calculate</Text>
+      <TouchableOpacity style={styles.butto11} onPress={calorieCounterFunc}>
+        <Text style={styles.appButtonText}>Calculate</Text>
       </TouchableOpacity>
-        
+
       <FlatList
         data={calData}
         renderItem={CaloriDisplay}
-        keyExtractor={item => item.calory}
+        keyExtractor={(item) => item.calory}
         persistentScrollbar={true}
       />
     </SafeAreaView>
-
   );
 }
 
-const CaloriDisplay = ({item}) => (
-      <View style={{flex: 1}}>
-        <View style={{marginHorizontal: 20, alignItems: 'center', padding: 10,}}>
-          <Text style={styles.captionDisplay}>{item.title} ({item.weight})</Text>
-          <Text style={styles.status}>Daily calorie intake: {item.calory}</Text>
-        </View>
-      </View>     
-    )
+const CaloriDisplay = ({ item }) => (
+  <View style={{ flex: 1 }}>
+    <View style={{ marginHorizontal: 20, alignItems: "center", padding: 10 }}>
+      <Text style={styles.captionDisplay}>
+        {item.title} ({item.weight})
+      </Text>
+      <Text style={styles.status}>Daily calorie intake: {item.calory}</Text>
+    </View>
+  </View>
+);
 
 const styles = StyleSheet.create({
-  // const styles = EStyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 30,
-    backgroundColor: "#fccdb6"
+    backgroundColor: "#fccdb6",
   },
   panelBody: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '86%',
-    borderBottomColor: 'black',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "86%",
+    borderBottomColor: "black",
     paddingTop: 3,
     marginHorizontal: 0,
   },
-  searchInput:{
+  searchInput: {
     width: "75%",
     paddingBottom: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderColor: "#000000",
     borderBottomWidth: 1.5,
   },
   searchButton: {
-    // marginBottom: 30,
     width: 88,
-    alignItems: 'center',
-    // backgroundColor: '#2196F3'
+    alignItems: "center",
     backgroundColor: "#F49262",
-    borderRadius: 15
+    borderRadius: 15,
   },
   searchButtonText: {
-    textAlign: 'center',
+    textAlign: "center",
     padding: 13,
-    color: 'white',
-    fontSize: 18
+    color: "white",
+    fontSize: 18,
   },
-  text:{
+  text: {
     flex: 6,
-    flexDirection: 'column',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
-    flexWrap: 'wrap',
+    flexDirection: "column",
+    justifyContent: "flex-start",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
     padding: 3,
     marginVertical: 5,
     marginHorizontal: 0,
-  },poster:{
-    justifyContent: 'center',
-    alignItems: 'center',
+  },
+  poster: {
+    justifyContent: "center",
+    alignItems: "center",
     flex: 4,
     padding: 3,
     marginVertical: 5,
     marginHorizontal: 0,
   },
-  captionDisplay:{
-    color: '#F75A0D',
+  captionDisplay: {
+    color: "#F75A0D",
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     padding: 3,
     marginVertical: 8,
-    marginHorizontal: 5, 
+    marginHorizontal: 5,
   },
-  status:{ 
-    color: '#90593E',
+  status: {
+    color: "#90593E",
     fontSize: 20,
     padding: 3,
-    // marginVertical: 0,
-    marginHorizontal: 5, 
+    marginHorizontal: 5,
   },
-  hide:{
-    color:'#5588c1',
+  hide: {
+    color: "#5588c1",
     fontSize: 20,
-    // padding: 5,
     marginTop: 10,
     marginVertical: 0,
     marginHorizontal: 5,
   },
-  image:{
-    width: '90%',
+  image: {
+    width: "90%",
     height: undefined,
     aspectRatio: 1.3,
   },
-  panelAdd:{
-    flexDirection:"row",
-    justifyContent: 'flex-start',
-    color: 'gray',
-    width: '80%',
+  panelAdd: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    color: "gray",
+    width: "80%",
     marginTop: 5,
     marginBottom: 5,
   },
-  header:{
+  header: {
     fontSize: 20,
-    fontWeight: 'bold',
-    fontolor: '#1b00fa'
+    fontWeight: "bold",
+    fontolor: "#1b00fa",
   },
   panelBody2: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '62%',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "62%",
     borderWidth: 1,
-    borderColor: 'gray',
+    borderColor: "gray",
     borderRadius: 4,
     padding: 3,
     marginVertical: 5,
     marginHorizontal: 0,
-    marginLeft:44
+    marginLeft: 44,
   },
-  footer:{
-    alignContent: 'center',
-    justifyContent: 'center',
-    marginLeft:85
+  footer: {
+    alignContent: "center",
+    justifyContent: "center",
+    marginLeft: 85,
   },
-  homescreen:{ 
-    flex: 1, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    // backgroundColor: "#fccdb6"
+  homescreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  homeImage:{
-    width: '100%',
+  homeImage: {
+    width: "100%",
     height: undefined,
     aspectRatio: 3.6,
-    // borderRadius: 5,
     overflow: "hidden",
-    marginHorizontal:35,
-    // borderWidth: 3,
-    // borderColor: "blue"
+    marginHorizontal: 35,
   },
-  homeposter:{
-    // justifyContent: 'center',
-    // alignItems: 'center',
-    // flex: 1,
+  homeposter: {
     padding: 3,
+    paddingBottom: 150,
     marginVertical: 5,
     marginHorizontal: 50,
-    marginBottom: 60,
     marginTop: 50,
-    overflow: 'hidden'
+    overflow: "hidden",
   },
   welcome: {
     marginTop: 100,
     fontSize: 60,
-    fontWeight: 'bold',
-    fontFamily: "Savoye LET"
+    fontWeight: "bold",
+    fontFamily: "Savoye LET",
   },
   fixToText: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   butto11: {
-    // alignItems: "center",
-    // backgroundColor: "#007AFF",
-    // padding: 5,
-    // fontSize:500,
-    margin:25,
+    margin: 25,
     elevation: 8,
     backgroundColor: "#444444",
     borderRadius: 10,
@@ -701,12 +830,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 35,
     marginHorizontal: 110,
   },
-    buttonHome: {
-    // alignItems: "center",
-    // backgroundColor: "#007AFF",
-    // padding: 5,
-    // fontSize:500,
-    margin:25,
+  buttonHome: {
+    margin: 20,
     elevation: 8,
     backgroundColor: "#444444",
     borderRadius: 10,
@@ -720,107 +845,64 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
     alignSelf: "center",
-    textTransform: "uppercase"
+    textTransform: "uppercase",
   },
-  calorieScreen:{
+  calorieScreen: {
     flex: 1,
-    // justifyContent: "space-between",
-    // justifyContent:"center",
-    // alignItems: 'center',
     backgroundColor: "#fccdb6",
-    // padding: 50,
-    // margin: 10,
-    // marginHorizontal: 0,
   },
   middle: {
-    // flex: 0.3,
     backgroundColor: "#F49262",
-    // borderWidth: 2,
-    
-    borderRadius:40,
-    // borderStyle:'dashed',
-    // marginTop: 50,
-    justifyContent:"center",
-    alignItems: 'center',
-    width: "90%", height: 50,
-    // marginHorizontal: 60,
-    // marginTop: 20,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "90%",
+    height: 50,
     margin: 20,
     paddingHorizontal: 20,
-    // marginVertical: 30
-    // shadowColor: 'black',
-    // elevation: 0.6,
-    // shadowRadius: 4,
-    // shadowOffset: {width: 10, height: 10,}
   },
   calorieText: {
     fontSize: 20,
     color: "#FDFAF9",
     fontWeight: "bold",
     alignSelf: "center",
-    // textTransform: "uppercase"
   },
   textBold: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     width: 80,
-    color:'#79452B',
-
+    color: "#79452B",
   },
-  entries:{
-    // borderColor: 'black',
-    // borderWidth: 2,
-    // justifyContent: "space-between",
-    // flex: 1,
+  entries: {
     zIndex: 1,
-    flexDirection: 'row',
-    // width: "50%",
+    flexDirection: "row",
     paddingHorizontal: 10,
     textAlign: "left",
-    display: 'flex',
+    display: "flex",
     justifyContent: "space-between",
-    alignItems: "center"
+    alignItems: "center",
   },
   input: {
     fontSize: 18,
-
-    // margin: 12,
-    // borderWidth: 1,
-    // padding: 10,
   },
-  inputWrapper:{
+  inputWrapper: {
     width: "75%",
     margin: 12,
     borderWidth: 1,
     padding: 10,
   },
   backgroundVideo: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     bottom: 0,
     right: 0,
   },
-  video: {
-    alignSelf: 'center',
-    marginTop:10,
-    width: '90%',
-    height: 250,
-  },
-  card: {
-    // padding: 20,
-    // backgroundColor: "#fff",
-    // margin: 10,
 
+  card: {
     backgroundColor: "grey",
     margin: 10,
     marginHorizontal: 10,
-    // shadowOpacity: 0.5,
-    // shadowColor: "#ccc",
-    // shadowOffset: { height: 4, width: 4 },
-    // marginHorizontal: 20,
-    // // alignSelf:"left"
-    // justifyContent:"center"
   },
   map: {
     borderWidth: 2,
@@ -829,8 +911,8 @@ const styles = StyleSheet.create({
     height: 50,
     marginBottom: 15,
   },
-  foodImage:{
-    width: '90%',
+  foodImage: {
+    width: "90%",
     height: undefined,
     aspectRatio: 1.3,
   },
@@ -856,53 +938,34 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: "red",
   },
-  RecipeScreen:{
+  RecipeScreen: {
     flex: 1,
-    // justifyContent: "space-between",
-    // justifyContent:"center",
-    // alignItems: 'center',
     backgroundColor: "#f0eeed",
-    // padding: 50,
-    // margin: 10,
-    // marginHorizontal: 0,
   },
   card1: {
-    // padding: 20,
-    // backgroundColor: "#fff",
-    // margin: 10,
-
     backgroundColor: "#ecb397",
     margin: 10,
     marginHorizontal: 30,
     shadowOpacity: 0.5,
     shadowColor: "#bdbcbc",
-    shadowOffset: { height: 3},
+    shadowOffset: { height: 3 },
     shadowRadius: 5,
     borderRadius: 5,
     backgroundColor: "white",
-    // marginHorizontal: 20,
-    // // alignSelf:"left"
-    // justifyContent:"center"
   },
   map1: {
-    // borderWidth: 2,
-    // width: 70,
-    // alignSelf: "left",
-    // height: 50,
-    // marginBottom: 15,
-    justifyContent:'center'
+    justifyContent: "center",
   },
-  foodImage1:{
-    width: '95%',
-    // height: '30%',
-    marginTop:8,
-    alignSelf:"center",
-    alignItems:"center",
-    justifyContent:"center",
+  foodImage1: {
+    width: "95%",
+    marginTop: 8,
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
     aspectRatio: 1.9,
-    borderColor: 'black',
+    borderColor: "black",
     borderRadius: 5,
-    borderWidth:0
+    borderWidth: 0,
   },
   subHeader1: {
     flexDirection: "row",
@@ -926,61 +989,145 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: "red",
   },
-  header1:{
+  header1: {
     fontSize: 20,
-    fontWeight: 'bold',
-    margin: 10
+    fontWeight: "bold",
+    margin: 10,
   },
   containerFoodPanel: {
     flex: 1,
-    // backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 30,
-    backgroundColor: "#ffffff"
+    backgroundColor: "#ffffff",
   },
   searchBarView: {
-    // marginTop: 10,
     flex: 1.5,
-    // height: "50%",
-    // width: "75%",
-    // alignContent: "center",
   },
 
   searchBar: {
     backgroundColor: "#ffffff",
-    borderBottomColor: 'transparent',
-    borderTopColor: 'transparent'
+    borderBottomColor: "transparent",
+    borderTopColor: "transparent",
   },
-  backgroundImage:{
+  backgroundImage: {
     flex: 1,
-    justifyContent: "center"
+    justifyContent: "center",
   },
   recipeViewButton: {
-    // marginBottom: 30,
-    width: '100%',
-    alignItems: 'center',
-    // backgroundColor: '#2196F3'
-    // backgroundColor: "#F49262",
-    backgroundColor:'#fff',
+    width: "100%",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 15,
-    marginTop: 10
+    marginTop: 10,
   },
   recipeViewText: {
-    textAlign: 'center',
+    textAlign: "center",
     padding: 13,
-    color: '#79452B',
-    fontSize: 18
+    color: "#79452B",
+    fontSize: 18,
   },
   controlBar: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: 45,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
-  }
+  },
+  recipeInfoContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  recipeInfoScreen: {
+    flex: 1,
+  },
+  recipeTitle: {
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    paddingLeft: 10,
+    marginTop: 10,
+  },
+  recipeTitleText: {
+    fontSize: 29,
+    fontWeight: "700",
+    color: "black",
+    fontFamily: "GillSans-Bold",
+  },
+  recipeLikeRate: {
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    paddingLeft: 10,
+  },
+  recipeLikeRateText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#e40754",
+    fontFamily: "GillSans-BoldItalic",
+  },
+  video: {
+    alignSelf: "center",
+    marginTop: 10,
+    width: "99%",
+    height: 250,
+    borderColor: "grey",
+    borderWidth: 1,
+    borderRadius: 5,
+  },
+  recipeIngredients: {
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    paddingLeft: 10,
+  },
+  recipeIngredientsText: {
+    marginTop: 5,
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#222",
+    fontFamily: "TimesNewRomanPS-BoldMT",
+  },
+  recipeServingText: {
+    marginTop: 3,
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#222",
+    fontFamily: "TimesNewRomanPS-BoldMT",
+  },
+  ingredients: {
+    shadowOpacity: 0.5,
+    shadowColor: "#bdbcbc",
+    shadowOffset: { height: 3 },
+    shadowRadius: 5,
+    borderRadius: 5,
+  },
+  ingredientsText: {
+    marginTop: 4,
+    fontSize: 18,
+    // fontWeight: '900',
+    color: "#222",
+    fontFamily: "Times New Roman",
+  },
+  instructions: {
+    margin: 5,
+  },
+  instructionsText: {
+    marginTop: 4,
+    fontSize: 18,
+    // fontWeight: '900',
+    color: "#222",
+    fontFamily: "Times New Roman",
+  },
+  overlay: {
+    flex: 1,
+    position: "absolute",
+    left: 20,
+    top: 60,
+    opacity: 1,
+    backgroundColor: "white",
+    borderRadius: 10,
+    width: 390,
+  },
 });
