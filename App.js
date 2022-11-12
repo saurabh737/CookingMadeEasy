@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Keyboard,
+  TouchableHighlight,
+  Pressable,
 } from "react-native";
 import React, { useState, useEffect } from "react";
 import axios from "axios";
@@ -30,6 +32,9 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { SearchBar } from "react-native-elements";
+
+import * as Speech from "expo-speech";
+const avatarPlaceholderImg = require("./assets/logo-black.png");
 
 const Stack = createNativeStackNavigator();
 
@@ -70,9 +75,12 @@ function RecipeInfo(props) {
   const [loader, setLoader] = React.useState(true);
   const [status, setStatus] = React.useState(null);
   const [recipeData, setRecipeData] = useState(null);
+  const [audioName, setAudioName] = useState(null);
+
   const saveRecipeData = async (foodObj, recipeId) => {
     await setDoc(doc(db, "recipeInfo", recipeId.toString()), foodObj);
   };
+  const [audio, setAudio] = useState(true);
 
   const getRecipeData = async (recipeId) => {
     try {
@@ -86,6 +94,22 @@ function RecipeInfo(props) {
     } catch (error) {
       console.log(error);
       return null;
+    }
+  };
+
+  const speak = (type, data, name) => {
+    if (audio && audioName == name) {
+      Speech.resume();
+    } else if (!audio && audioName == name) {
+      Speech.pause();
+    }
+
+    if (type == "instructions") {
+      let text = "";
+      data.forEach((ingre, id) => {
+        text = text.concat((ingre.id + 1).toString(), ingre.text);
+      });
+      Speech.speak(text);
     }
   };
 
@@ -143,6 +167,7 @@ function RecipeInfo(props) {
       if (recipeInfo) {
         setRecipeData(recipeInfo);
         setLoader(false);
+        Speech.stop();
       } else getRecipeInfo(props.route.params.text.id);
     })();
   }, []);
@@ -205,10 +230,34 @@ function RecipeInfo(props) {
                   />
                 </SafeAreaView>
               </View>
-              <View style={{ marginTop: 20 }}>
-                <Text style={styles.recipeIngredientsText}> Instructions</Text>
-              </View>
-              <SafeAreaView style={{ flex: 1 }}>
+              <Pressable
+                onPress={() => {
+                  setAudio(!audio);
+                  speak(
+                    "instructions",
+                    recipeData.instructions,
+                    recipeData.name
+                  );
+                  setAudioName(recipeData.name);
+                  // setAudio(!audio);
+                }}
+                // style={styles.btnClickContain}
+              >
+                <View
+                  style={{ marginTop: 20, justifyContent: "space-between" }}
+                >
+                  <Text style={styles.recipeInstructionsText}>
+                    {" "}
+                    Instructions{"  "}
+                    {audio ? (
+                      <Fontisto name="volume-up" size={18} color="black" />
+                    ) : (
+                      <Fontisto name="volume-off" size={18} color="black" />
+                    )}
+                  </Text>
+                </View>
+              </Pressable>
+              <SafeAreaView style={{ flex: 1, marginBottom: 20 }}>
                 <FlatList
                   data={recipeData.instructions}
                   renderItem={InstrDisplay}
@@ -251,14 +300,13 @@ function Splashpage(props) {
         style={styles.backgroundImage}
       >
         <View style={styles.homescreen}>
-          {/* <Text style={styles.welcome} onPress={props.clickFunction}>Cooking Made Easy</Text> */}
-          <View style={styles.homeposter}>
+          <View style={styles.logoView}>
             <Image
-              style={styles.homeImage}
+              style={styles.logoImage}
               source={require("./assets/logo-no-background.png")}
             />
           </View>
-          <View style={{ marginVertical: 20 }}>
+          <View style={{ marginVertical: 20, marginBottom: 50 }}>
             <TouchableOpacity
               style={styles.buttonHome}
               onPress={() =>
@@ -279,10 +327,6 @@ function Splashpage(props) {
             >
               <Text style={styles.appButtonText}>Calorie Counter</Text>
             </TouchableOpacity>
-
-            {props.route.params && (
-              <Text>Information from {props.route.params.text}!</Text>
-            )}
           </View>
         </View>
       </ImageBackground>
@@ -293,6 +337,7 @@ function Splashpage(props) {
 function HomePage(props) {
   const [movies, setMovies] = useState([]);
   const [homeLoader, sethomeLoader] = useState(true);
+  const [selectIndex, setSelectIndex] = useState(1);
 
   const saveData = async (foodObj) => {
     await setDoc(doc(db, "food", foodObj.id.toString()), foodObj);
@@ -308,74 +353,80 @@ function HomePage(props) {
     return movieRes;
   };
 
-  const getReviews = (searchKey) => {
+  const getReviews = async (searchKey) => {
     sethomeLoader(true);
-    let foodURL = foodConstURL;
-    if (searchKey.length > 0) {
-      foodURL = `${foodConstURL}?from=0&size=60&q=${searchKey}`;
+    if (searchKey == "all") {
+      let movieArray = await getData();
+      if (movieArray.length !== 0) {
+        setMovies([...movieArray]);
+        sethomeLoader(false);
+      }
     } else {
-      foodURL = `${foodConstURL}?from=0&size=300`;
-    }
-    console.log(foodURL);
-    axios({
-      method: "get",
-      url: foodURL,
-      headers: {
-        "X-RapidAPI-Key": "5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998",
-        "X-RapidAPI-Host": "tasty.p.rapidapi.com",
-      },
-    }).then((response) => {
-      let movieList = response.data.results;
-      let movieArray = [];
-      // console.log(movieList.length,"===============================")
-      movieList.forEach((item, id) => {
-        let d = new Date(item.created_at * 1000);
-        let instArr = [];
-        if (
-          item.name &&
-          item.thumbnail_url &&
-          (item.original_video_url || item.video_url) &&
-          item.instructions
-        ) {
-          item.instructions.forEach((instr, id) => {
-            instArr.push(instr.display_text);
-          });
-          let movieObject = {
-            id: item.id,
-            key: item.id,
-            title: item.name,
-            name:
-              item.description && item.description.length > 20
-                ? `${item.description.slice(0, 50)}...`
-                : item.description,
-            date: `${d.getMonth() + 1}-${d.getDay()}-${d.getFullYear()}`,
-            source: item.thumbnail_url ? item.thumbnail_url : "",
-            metadata: {
-              instructions: instArr,
-              user_ratings: item.user_ratings,
-              tags: item.tags,
-              video_url: item.original_video_url
-                ? item.original_video_url
-                : item.video_url,
+      let foodURL = foodConstURL;
+      if (searchKey.length > 0 && searchKey != "all") {
+        foodURL = `${foodConstURL}?from=0&size=60&q=${searchKey}`;
+      } else {
+        foodURL = `${foodConstURL}?from=0&size=300`;
+      }
+      axios({
+        method: "get",
+        url: foodURL,
+        headers: {
+          "X-RapidAPI-Key":
+            "5cd3250e74msh2fe99043d4e8234p10d6fdjsn52522327a998",
+          "X-RapidAPI-Host": "tasty.p.rapidapi.com",
+        },
+      }).then((response) => {
+        let movieList = response.data.results;
+        let movieArray = [];
+        movieList.forEach((item, id) => {
+          let d = new Date(item.created_at * 1000);
+          let instArr = [];
+          if (
+            item.name &&
+            item.thumbnail_url &&
+            (item.original_video_url || item.video_url) &&
+            item.instructions
+          ) {
+            item.instructions.forEach((instr, id) => {
+              instArr.push(instr.display_text);
+            });
+            let movieObject = {
               id: item.id,
-            },
-          };
-          console.log(item.name, item.id);
-          if (!(searchKey.length > 0)) {
-            saveData(movieObject);
+              key: item.id,
+              title: item.name,
+              name:
+                item.description && item.description.length > 20
+                  ? `${item.description.slice(0, 50)}...`
+                  : item.description,
+              date: `${d.getMonth() + 1}-${d.getDay()}-${d.getFullYear()}`,
+              source: item.thumbnail_url ? item.thumbnail_url : "",
+              metadata: {
+                instructions: instArr,
+                user_ratings: item.user_ratings,
+                tags: item.tags,
+                video_url: item.original_video_url
+                  ? item.original_video_url
+                  : item.video_url,
+                id: item.id,
+              },
+            };
+            if (!(searchKey.length > 0)) {
+              saveData(movieObject);
+            }
+            movieArray.push(movieObject);
           }
-          movieArray.push(movieObject);
-        }
-      });
-      movieArray.sort(
-        (a, b) =>
-          b.metadata.user_ratings.count_positive -
-          a.metadata.user_ratings.count_positive
-      );
+        });
+        movieArray.sort(
+          (a, b) =>
+            b.metadata.user_ratings.count_positive -
+            a.metadata.user_ratings.count_positive
+        );
 
-      setMovies([...movieArray]);
-      sethomeLoader(false);
-    });
+        setMovies([...movieArray]);
+        sethomeLoader(false);
+      });
+    }
   };
 
   const [suggestion, setSuggestion] = useState(null);
@@ -406,8 +457,30 @@ function HomePage(props) {
         searchFunction={getReviews}
         searchSuggestion={searchSuggestion}
       />
+      <FlatList
+        style={{ marginLeft: 0, width: 400, height: 50 }}
+        horizontal={true}
+        data={[
+          { id: 1, dText: "All Recipes", tag_name: "all" },
+          { id: 2, dText: "Indian", tag_name: "indian" },
+          { id: 3, dText: "Italian", tag_name: "italian" },
+          { id: 4, dText: "Under 30min", tag_name: "under_30_minutes" },
+          { id: 5, dText: "Dairy-Free", tag_name: "dairy_free" },
+          { id: 6, dText: "Vegan", tag_name: "vegan" },
+          { id: 7, dText: "Budget Expert", tag_name: "budget_expert" },
+          { id: 8, dText: "Thai", tag_name: "thai" },
+          { id: 9, dText: "Mexican", tag_name: "mexican" },
+          { id: 10, dText: "Dessert", tag_name: "one_top_app_dessert" },
+        ]}
+        renderItem={(item) =>
+          tags(item, getReviews, selectIndex, setSelectIndex)
+        }
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item.id}
+      />
+      {/* </View> */}
       {homeLoader ? (
-        <View style={{ flex: 1, justifyContent: "center" }}>
+        <View style={{ flex: 1, marginTop: 20 }}>
           <ActivityIndicator size="large" color="#F49262" />
         </View>
       ) : (
@@ -423,43 +496,66 @@ function HomePage(props) {
   );
 }
 
+const tags = ({ item }, getReviews, selectIndex, setSelectIndex) => {
+  return (
+    <View
+      style={[
+        styles.tagButton,
+        {
+          backgroundColor: selectIndex === item.id ? "#F28585" : "transparent",
+        },
+      ]}
+    >
+      <TouchableOpacity
+        onPress={() => {
+          Keyboard.dismiss();
+          getReviews(item.tag_name);
+          setSelectIndex(item.id);
+        }}
+      >
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.tagButtonText,
+            {
+              color: selectIndex === item.id ? "black" : "grey",
+            },
+          ]}
+        >
+          {item.dText}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 function SearchPanel(props) {
   const [text, setText] = useState("");
 
   return (
-    <View style={styles.panelBody}>
-      <View style={styles.searchBarView}>
-        <SearchBar
-          Color="#ffff"
-          containerStyle={styles.searchBar}
-          placeholder="Looking for ??"
-          lightTheme
-          round
-          searchIcon={{ color: "#fff", solid: true, size: 35 }}
-          inputStyle={{ color: "#fff" }}
-          // onChangeText={(value)=>setText(value)}
-          onChangeText={(value) => {
-            setText(value);
-            props.searchSuggestion(value);
-          }}
-          onSubmitEditing={() => {
-            props.searchFunction(text);
-          }}
-          showCancel
-          value={text}
-        />
-      </View>
-      <TouchableOpacity
-        onPress={() => {
-          Keyboard.dismiss();
-          props.searchFunction(text);
-          setText("");
-        }}
-      >
-        <View style={styles.searchButton}>
-          <Text style={styles.searchButtonText}>Search</Text>
+    <View>
+      <View style={styles.panelBody}>
+        <View style={styles.searchBarView}>
+          <SearchBar
+            Color="#ffff"
+            containerStyle={styles.searchBar}
+            placeholder="Looking for..."
+            lightTheme
+            round
+            searchIcon={{ color: "#fff", solid: true, size: 35 }}
+            inputStyle={{ color: "#fff" }}
+            onChangeText={(value) => {
+              setText(value);
+              props.searchSuggestion(value);
+            }}
+            onSubmitEditing={() => {
+              props.searchFunction(text);
+            }}
+            showCancel
+            value={text}
+          />
         </View>
-      </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -469,6 +565,7 @@ const foodPanel = ({ item }, props, saveData, getData) => (
     <View style={styles.map1}>
       <Image
         resizeMode="cover"
+        defaultSource={avatarPlaceholderImg}
         style={styles.foodImage1}
         source={{ uri: item.source }}
       />
@@ -486,9 +583,7 @@ const foodPanel = ({ item }, props, saveData, getData) => (
         {"  "}
         {item.metadata.user_ratings.count_negative}
       </Text>
-      {/* <Text style={{ color: "darkgrey", alignItems:'center' }}> */}
       <Guide id={item.id} propsData={props} metadata={item.metadata} />
-      {/* </Text> */}
     </View>
   </View>
 );
@@ -556,7 +651,6 @@ function CalorieCounter(props) {
       let res = response.data.data.goals;
       setMaintainWeight(res["maintain weight"]);
       delete res["maintain weight"];
-      console.log(res);
       var calorieData = Object.keys(res).map((key) => {
         res[key].title = key;
         if (res[key]["gain weight"]) {
@@ -570,7 +664,6 @@ function CalorieCounter(props) {
         return res[key];
       });
       calorieData.sort((a, b) => a.calory - b.calory);
-      console.log("Cal", calorieData);
       setCaldata(calorieData);
     });
   };
@@ -612,7 +705,14 @@ function CalorieCounter(props) {
         <View style={{ zIndex: 1 }}>
           <View style={styles.entries}>
             <Text style={styles.textBold}>Gender: </Text>
-            <View style={{ paddingLeft: 10, marginRight: 195, zIndex: 1 }}>
+            <View
+              style={{
+                paddingLeft: 10,
+                marginRight: 195,
+                zIndex: 1,
+                borderRadius: 30,
+              }}
+            >
               <DropDownPicker
                 open={open}
                 value={gender}
@@ -622,7 +722,9 @@ function CalorieCounter(props) {
                 setItems={setItems}
                 theme="LIGHT"
                 multiple={false}
-                dropDownStyle={{ backgroundColor: "#fff" }}
+                showTickIcon={true}
+                dropDownStyle={{ backgroundColor: "#fff", borderWidth: 30 }}
+                containerStyle={{ borderWidth: 0 }}
                 mode="BADGE"
                 badgeDotColors={[
                   "#e76f51",
@@ -653,7 +755,13 @@ function CalorieCounter(props) {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.butto11} onPress={calorieCounterFunc}>
+      <TouchableOpacity
+        style={styles.butto11}
+        onPress={() => {
+          Keyboard.dismiss();
+          calorieCounterFunc();
+        }}
+      >
         <Text style={styles.appButtonText}>Calculate</Text>
       </TouchableOpacity>
 
@@ -691,10 +799,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    width: "86%",
+    // width: "86%",
     borderBottomColor: "black",
     paddingTop: 3,
-    marginHorizontal: 0,
+    marginLeft: 20,
+    marginRight: 30,
   },
   searchInput: {
     width: "75%",
@@ -796,19 +905,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  homeImage: {
+  logoImage: {
     width: "100%",
     height: undefined,
     aspectRatio: 3.6,
     overflow: "hidden",
     marginHorizontal: 35,
   },
-  homeposter: {
+  logoView: {
     padding: 3,
-    paddingBottom: 150,
-    marginVertical: 5,
+    paddingBottom: 130,
+    marginVertical: 15,
     marginHorizontal: 50,
-    marginTop: 50,
+    // marginTop: 50,
     overflow: "hidden",
   },
   welcome: {
@@ -831,25 +940,25 @@ const styles = StyleSheet.create({
     marginHorizontal: 110,
   },
   buttonHome: {
-    margin: 20,
+    margin: 8,
     elevation: 8,
-    backgroundColor: "#444444",
-    borderRadius: 10,
+    backgroundColor: "#943100",
+    borderRadius: 50,
     paddingVertical: 12,
-    paddingHorizontal: 40,
-    marginHorizontal: 20,
+    paddingHorizontal: 30,
+    marginHorizontal: 30,
   },
 
   appButtonText: {
-    fontSize: 20,
+    fontSize: 25,
     color: "#fff",
-    fontWeight: "bold",
+    fontWeight: "500",
     alignSelf: "center",
-    textTransform: "uppercase",
+    // textTransform: "uppercase",
   },
   calorieScreen: {
     flex: 1,
-    backgroundColor: "#fccdb6",
+    backgroundColor: "#fff",
   },
   middle: {
     backgroundColor: "#F49262",
@@ -888,8 +997,14 @@ const styles = StyleSheet.create({
   inputWrapper: {
     width: "75%",
     margin: 12,
-    borderWidth: 1,
+    // borderWidth: 1,
     padding: 10,
+    shadowOpacity: 0.5,
+    shadowColor: "#bdbcbc",
+    shadowOffset: { height: 3 },
+    shadowRadius: 5,
+    borderRadius: 5,
+    backgroundColor: "white",
   },
   backgroundVideo: {
     position: "absolute",
@@ -944,7 +1059,8 @@ const styles = StyleSheet.create({
   },
   card1: {
     backgroundColor: "#ecb397",
-    margin: 10,
+    // margin: 10,
+    marginVertical: 10,
     marginHorizontal: 30,
     shadowOpacity: 0.5,
     shadowColor: "#bdbcbc",
@@ -952,12 +1068,15 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     borderRadius: 5,
     backgroundColor: "white",
+    // width: "100%",
+    // alignSelf: "center",
   },
   map1: {
     justifyContent: "center",
   },
   foodImage1: {
     width: "95%",
+    // height: undefined,
     marginTop: 8,
     alignSelf: "center",
     alignItems: "center",
@@ -996,8 +1115,8 @@ const styles = StyleSheet.create({
   },
   containerFoodPanel: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    // alignItems: "center",
+    // justifyContent: "center",
     paddingTop: 30,
     backgroundColor: "#ffffff",
   },
@@ -1012,6 +1131,7 @@ const styles = StyleSheet.create({
   },
   backgroundImage: {
     flex: 1,
+    // opacity: 0.,
     justifyContent: "center",
   },
   recipeViewButton: {
@@ -1074,8 +1194,8 @@ const styles = StyleSheet.create({
     width: "99%",
     height: 250,
     borderColor: "grey",
-    borderWidth: 1,
-    borderRadius: 5,
+    // borderWidth: 1,
+    borderRadius: 10,
   },
   recipeIngredients: {
     alignItems: "flex-start",
@@ -1104,18 +1224,27 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   ingredientsText: {
-    marginTop: 4,
-    fontSize: 18,
+    marginTop: 7,
+    fontSize: 21,
+    marginHorizontal: 15,
     // fontWeight: '900',
     color: "#222",
     fontFamily: "Times New Roman",
+  },
+  recipeInstructionsText: {
+    marginTop: 5,
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#222",
+    fontFamily: "TimesNewRomanPS-BoldMT",
   },
   instructions: {
     margin: 5,
   },
   instructionsText: {
-    marginTop: 4,
-    fontSize: 18,
+    marginTop: 5,
+    fontSize: 21,
+    marginHorizontal: 15,
     // fontWeight: '900',
     color: "#222",
     fontFamily: "Times New Roman",
@@ -1129,5 +1258,32 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderRadius: 10,
     width: 390,
+  },
+  tagButton: {
+    // width: 70,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    borderColor: "black",
+    // borderWidth: 0.8,
+    // borderLeftWidth: 1.2,
+    // borderRightWidth: 1.2,
+    margin: 5,
+    // flexGrow: 0,
+    paddingHorizontal: 15,
+    height: 35,
+  },
+  tagButtonText: {
+    textAlign: "center",
+    // padding: 10,
+    color: "black",
+    fontSize: 18,
+    fontWeight: "350",
+  },
+  tagtouch: {
+    marginLeft: 0,
+    width: 400,
+    height: 10,
   },
 });
