@@ -119,7 +119,7 @@ function HomePage(props) {
   const [homeLoader, sethomeLoader] = useState(true);
   const [selectIndex, setSelectIndex] = useState(1);
   const [search, setSearch] = useState(null);
-  const [lastSearch, setLastSearch] = useState(null);
+  const [lastSearch, setLastSearch] = useState("all");
 
   const saveData = async (foodObj) => {
     await setDoc(doc(db, "food", foodObj.id.toString()), foodObj);
@@ -333,6 +333,7 @@ function CardDisplay(props) {
         <Pressable
           onPress={() => {
             props.setSearch("");
+            // if len(props.lastSearch)
             props.getReviews(props.lastSearch);
             // props.setSelectIndex(1);
           }}
