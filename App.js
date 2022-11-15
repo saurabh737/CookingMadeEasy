@@ -14,6 +14,8 @@ import {
   Keyboard,
   Pressable,
   Alert,
+  Platform,
+  LogBox,
 } from "react-native";
 import React, { useState, useEffect } from "react";
 import axios from "axios";
@@ -93,16 +95,18 @@ function Splashpage(props) {
             >
               <Text style={styles.appButtonText}>Explore Recipes</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.buttonHome}
-              onPress={() =>
-                props.navigation.navigate("Calorie Counter", {
-                  text: "Home Screen",
-                })
-              }
-            >
-              <Text style={styles.appButtonText}>Calorie Counter</Text>
-            </TouchableOpacity>
+            {Platform.OS == "ios" ? (
+              <TouchableOpacity
+                style={styles.buttonHome}
+                onPress={() =>
+                  props.navigation.navigate("Calorie Counter", {
+                    text: "Home Screen",
+                  })
+                }
+              >
+                <Text style={styles.appButtonText}>Calorie Counter</Text>
+              </TouchableOpacity>
+            ) : undefined}
           </View>
         </View>
       </ImageBackground>
@@ -115,6 +119,7 @@ function HomePage(props) {
   const [homeLoader, sethomeLoader] = useState(true);
   const [selectIndex, setSelectIndex] = useState(1);
   const [search, setSearch] = useState(null);
+  const [lastSearch, setLastSearch] = useState(null);
 
   const saveData = async (foodObj) => {
     await setDoc(doc(db, "food", foodObj.id.toString()), foodObj);
@@ -131,8 +136,10 @@ function HomePage(props) {
 
   const getReviews = async (searchKey) => {
     sethomeLoader(true);
+    // if search
     if (searchKey == "all") {
       let movieArray = await getData();
+      setLastSearch("all");
       if (movieArray.length !== 0) {
         setMovies([...movieArray]);
         sethomeLoader(false);
@@ -155,6 +162,9 @@ function HomePage(props) {
         },
       }).then((response) => {
         let movieList = response.data.results;
+        if (searchKey.length && movieList.length > 0) {
+          setLastSearch(searchKey);
+        }
         let movieArray = [];
         movieList.forEach((item, id) => {
           let d = new Date(item.created_at * 1000);
@@ -213,7 +223,7 @@ function HomePage(props) {
       { id: 1, dText: "Chicken" },
       { id: 2, dText: "Fish" },
     ]);
-    console.log(suggestion);
+    // console.log(suggestion);
   }
 
   useEffect(() => {
@@ -275,6 +285,7 @@ function HomePage(props) {
           getReviews={getReviews}
           setSearch={setSearch}
           setSelectIndex={setSelectIndex}
+          lastSearch={lastSearch}
         />
       )}
       <StatusBar style="auto" />
@@ -316,20 +327,27 @@ const tags = ({ item }, getReviews, selectIndex, setSelectIndex) => {
 };
 
 function CardDisplay(props) {
-  console.log(props.search, props.movies.length);
   return (
     <View style={{ flex: 250 }}>
       {props.search && props.movies.length == 0 ? (
-        Alert.alert("Sorry", "No recipes found.", [
-          {
-            text: "OK",
-            onPress: () => {
-              props.setSearch(null);
-              props.getReviews("all");
-              props.setSelectIndex(1);
-            },
-          },
-        ])
+        <Pressable
+          onPress={() => {
+            props.setSearch("");
+            props.getReviews(props.lastSearch);
+            // props.setSelectIndex(1);
+          }}
+        >
+          <View style={styles.recipeNotFoundView}>
+            <View style={styles.recipeNotFoundImageView}>
+              <Image
+                resizeMode="cover"
+                defaultSource={avatarPlaceholderImg}
+                style={styles.recipeNotFoundImage}
+                source={require("./assets/not_found.png")}
+              />
+            </View>
+          </View>
+        </Pressable>
       ) : (
         <FlatList
           data={props.movies}
@@ -375,31 +393,39 @@ function SearchPanel(props) {
 }
 
 const foodPanel = ({ item }, props, saveData, getData) => (
-  <View style={styles.recipeCardView}>
-    <View style={styles.recipeImageView}>
-      <Image
-        resizeMode="cover"
-        defaultSource={avatarPlaceholderImg}
-        style={styles.recipeCardImage}
-        source={{ uri: item.source }}
-      />
-    </View>
-    <View style={styles.recipecardinfoview}>
-      <View style={styles.recipeCardTitleView}>
-        <Text style={styles.recipeCardTitleText}>{item.title}</Text>
+  <Pressable
+    onPress={() => {
+      props.navigation.navigate("Details", {
+        text: item.metadata,
+      });
+    }}
+  >
+    <View style={styles.recipeCardView}>
+      <View style={styles.recipeImageView}>
+        <Image
+          resizeMode="cover"
+          defaultSource={avatarPlaceholderImg}
+          style={styles.recipeCardImage}
+          source={{ uri: item.source }}
+        />
       </View>
-      <Text style={{ fontSize: 17 }}>
-        <Fontisto name="like" size={18} color="green" />
-        {"  "}
-        {item.metadata.user_ratings.count_positive}
-        {"      "}
-        <Fontisto name="dislike" size={18} color="red" />
-        {"  "}
-        {item.metadata.user_ratings.count_negative}
-      </Text>
-      <Guide id={item.id} propsData={props} metadata={item.metadata} />
+      <View style={styles.recipecardinfoview}>
+        <View style={styles.recipeCardTitleView}>
+          <Text style={styles.recipeCardTitleText}>{item.title}</Text>
+        </View>
+        <Text style={{ fontSize: 17 }}>
+          <Fontisto name="like" size={18} color="green" />
+          {"  "}
+          {item.metadata.user_ratings.count_positive}
+          {"      "}
+          <Fontisto name="dislike" size={18} color="red" />
+          {"  "}
+          {item.metadata.user_ratings.count_negative}
+        </Text>
+        <Guide id={item.id} propsData={props} metadata={item.metadata} />
+      </View>
     </View>
-  </View>
+  </Pressable>
 );
 
 function RecipeInfo(props) {
@@ -503,6 +529,7 @@ function RecipeInfo(props) {
         Speech.stop();
       } else getRecipeInfo(props.route.params.text.id);
     })();
+    LogBox.ignoreLogs(["VirtualizedLists should never be nested"]);
   }, []);
 
   return (
@@ -564,13 +591,15 @@ function RecipeInfo(props) {
               </View>
               <Pressable
                 onPress={() => {
-                  setAudio(!audio);
-                  speak(
-                    "instructions",
-                    recipeData.instructions,
-                    recipeData.name
-                  );
-                  setAudioName(recipeData.name);
+                  if (Platform.OS == "ios") {
+                    setAudio(!audio);
+                    speak(
+                      "instructions",
+                      recipeData.instructions,
+                      recipeData.name
+                    );
+                    setAudioName(recipeData.name);
+                  }
                 }}
               >
                 <View
@@ -579,11 +608,14 @@ function RecipeInfo(props) {
                   <Text style={styles.recipeInstructionsText}>
                     {" "}
                     Instructions{"  "}
-                    {audio ? (
+                    {/* {audio ? (
                       <Fontisto name="volume-up" size={18} color="black" />
                     ) : (
                       <Fontisto name="volume-off" size={18} color="black" />
-                    )}
+                    )} */}
+                    {Platform.OS == "ios" ? (
+                      <Volume audio={audio} />
+                    ) : undefined}
                   </Text>
                 </View>
               </Pressable>
@@ -597,6 +629,18 @@ function RecipeInfo(props) {
             </ScrollView>
           </View>
         </SafeAreaView>
+      )}
+    </View>
+  );
+}
+
+function Volume(props) {
+  return (
+    <View>
+      {props.audio ? (
+        <Fontisto name="volume-up" size={18} color="black" />
+      ) : (
+        <Fontisto name="volume-off" size={18} color="black" />
       )}
     </View>
   );
@@ -729,6 +773,10 @@ function CalorieCounter(props) {
     }
   };
 
+  useEffect(() => {
+    LogBox.ignoreLogs(["VirtualizedLists should never be nested"]);
+  }, []);
+
   return (
     <SafeAreaView style={styles.calorieScreen}>
       <View style={styles.calorieHeaderTextView}>
@@ -829,20 +877,38 @@ function CalorieCounter(props) {
           },
         ])
       ) : (
-        <FlatList
-          data={calData}
-          renderItem={CaloriDisplay}
-          keyExtractor={(item) => item.calory}
-          persistentScrollbar={true}
-        />
+        <ScrollView>
+          {calData.length != 0 ? (
+            <Text
+              style={{
+                marginHorizontal: 85,
+                alignItems: "center",
+                fontSize: 16,
+                color: "grey",
+                // padding: 10,
+              }}
+            >
+              *Note: Weight loss/gain per week.
+            </Text>
+          ) : undefined}
+          <FlatList
+            data={calData}
+            renderItem={CaloriDisplay}
+            keyExtractor={(item) => item.calory}
+            persistentScrollbar={true}
+          />
+        </ScrollView>
       )}
     </SafeAreaView>
+    // <View>
+    //   <Text>jasdbfjasbdfj</Text>
+    // </View>
   );
 }
 
 const CaloriDisplay = ({ item }) => (
   <View style={{ flex: 1 }}>
-    <View style={{ marginHorizontal: 20, alignItems: "center", padding: 10 }}>
+    <View style={{ marginHorizontal: 20, alignItems: "center", padding: 7 }}>
       <Text style={styles.captionDisplay}>
         {item.title} ({item.weight})
       </Text>
@@ -987,12 +1053,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#ecb397",
     marginVertical: 10,
     marginHorizontal: 30,
-    shadowOpacity: 0.5,
-    shadowColor: "#bdbcbc",
-    shadowOffset: { height: 3 },
+    shadowOpacity: Platform.OS == "ios" ? 0.6 : 0.3,
+    shadowColor: Platform.OS == "ios" ? "#bdbcbc" : "black",
+    shadowOffset: Platform.OS == "ios" ? { height: 4 } : { height: 0 },
     shadowRadius: 5,
-    borderRadius: 5,
-    backgroundColor: "white",
+    borderRadius: Platform.OS == "ios" ? 5 : 1,
+    elevation: Platform.OS == "ios" ? 3 : 2,
+    backgroundColor: Platform.OS == "ios" ? "white" : "#0000",
   },
   recipeImageView: {
     justifyContent: "center",
@@ -1025,7 +1092,7 @@ const styles = StyleSheet.create({
   },
   containerFoodPanel: {
     flex: 1,
-    paddingTop: 30,
+    paddingTop: Platform.OS == "ios" ? 30 : 8,
     backgroundColor: "#ffffff",
   },
   searchBarView: {
@@ -1035,6 +1102,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderBottomColor: "transparent",
     borderTopColor: "transparent",
+    paddingTop: Platform.OS == "ios" ? 7 : 0,
   },
   backgroundImage: {
     flex: 1,
@@ -1072,6 +1140,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "flex-start",
     paddingLeft: 10,
+    marginBottom: 7,
   },
   recipeLikeRateText: {
     fontSize: 16,
@@ -1094,17 +1163,17 @@ const styles = StyleSheet.create({
   },
   recipeIngredientsText: {
     marginTop: 5,
-    fontSize: 28,
+    fontSize: Platform.OS == "ios" ? 28 : 22,
     fontWeight: "900",
     color: "#222",
-    fontFamily: "TimesNewRomanPS-BoldMT",
+    fontFamily: Platform.OS == "ios" ? "TimesNewRomanPS-BoldMT" : "",
   },
   recipeServingText: {
     marginTop: 3,
-    fontSize: 17,
+    fontSize: Platform.OS == "ios" ? 17 : 15,
     fontWeight: "800",
     color: "#222",
-    fontFamily: "TimesNewRomanPS-BoldMT",
+    fontFamily: Platform.OS == "ios" ? "TimesNewRomanPS-BoldMT" : "",
   },
   ingredients: {
     shadowOpacity: 0.5,
@@ -1114,28 +1183,28 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   ingredientsText: {
-    marginTop: 7,
-    fontSize: 21,
+    marginTop: Platform.OS == "ios" ? 7 : 2,
+    fontSize: Platform.OS == "ios" ? 21 : 18,
     marginHorizontal: 15,
     color: "#222",
-    fontFamily: "Times New Roman",
+    fontFamily: Platform.OS == "ios" ? "Times New Roman" : "",
   },
   recipeInstructionsText: {
     marginTop: 5,
-    fontSize: 28,
+    fontSize: Platform.OS == "ios" ? 28 : 22,
     fontWeight: "900",
     color: "#222",
-    fontFamily: "TimesNewRomanPS-BoldMT",
+    fontFamily: Platform.OS == "ios" ? "TimesNewRomanPS-BoldMT" : "",
   },
   instructions: {
     margin: 5,
   },
   instructionsText: {
-    marginTop: 5,
-    fontSize: 21,
-    marginHorizontal: 15,
+    marginTop: Platform.OS == "ios" ? 5 : 1,
+    fontSize: Platform.OS == "ios" ? 21 : 18,
+    marginHorizontal: Platform.OS == "ios" ? 15 : 10,
     color: "#222",
-    fontFamily: "Times New Roman",
+    fontFamily: Platform.OS == "ios" ? "Times New Roman" : "",
   },
   overlay: {
     flex: 1,
@@ -1188,5 +1257,35 @@ const pickerSelectStyles = StyleSheet.create({
     borderRadius: 8,
     color: "black",
     paddingRight: 30,
+  },
+  recipeNotFoundView: {
+    // backgroundColor: "#ecb397",
+    // marginVertical: 10,
+    // marginHorizontal: 30,
+    // shadowOpacity: Platform.OS == "ios" ? 0.6 : 0.3,
+    // shadowColor: Platform.OS == "ios" ? "#bdbcbc" : "black",
+    // shadowOffset: Platform.OS == "ios" ? { height: 4 } : { height: 0 },
+    // shadowRadius: 5,
+    // borderRadius: Platform.OS == "ios" ? 5 : 1,
+    // elevation: Platform.OS == "ios" ? 3 : 2,
+    backgroundColor: Platform.OS == "ios" ? "red" : "#0000",
+    width: "30%",
+    flex: -221,
+  },
+  recipeNotFoundImageView: {
+    height: "10%",
+    width: 100,
+    justifyContent: "center",
+  },
+  recipeNotFoundImage: {
+    width: "20%",
+    marginTop: 8,
+    // alignSelf: "center",
+    // alignItems: "center",
+    // justifyContent: "center",
+    // aspectRatio: 1.9,
+    // borderColor: "black",
+    // borderRadius: 5,
+    // borderWidth: 0,
   },
 });
