@@ -533,7 +533,7 @@ function RecipeInfo(props) {
   }, []);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
       {loader ? (
         <View style={{ flex: 1, justifyContent: "center" }}>
           <ActivityIndicator size="large" color="#F49262" />
@@ -563,7 +563,10 @@ function RecipeInfo(props) {
               ""
             )}
 
-            <ScrollView style={styles.scrollView}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={styles.scrollView}
+            >
               <Video
                 ref={video}
                 style={styles.video}
@@ -586,6 +589,7 @@ function RecipeInfo(props) {
                     data={recipeData.ingredients}
                     renderItem={ingredientsDisplay}
                     keyExtractor={(item) => item.id}
+                    showsVerticalScrollIndicator={false}
                   />
                 </SafeAreaView>
               </View>
@@ -624,6 +628,7 @@ function RecipeInfo(props) {
                   data={recipeData.instructions}
                   renderItem={InstrDisplay}
                   keyExtractor={(item) => item.id}
+                  showsVerticalScrollIndicator={false}
                 />
               </SafeAreaView>
             </ScrollView>
@@ -1120,6 +1125,7 @@ const styles = StyleSheet.create({
   recipeInfoContainer: {
     flex: 1,
     backgroundColor: "#fff",
+    marginHorizontal: 10,
   },
   recipeInfoScreen: {
     flex: 1,
@@ -1131,10 +1137,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   recipeTitleText: {
-    fontSize: 29,
-    fontWeight: "700",
+    fontSize: 38,
+    fontWeight: "bold",
     color: "black",
-    fontFamily: "GillSans-Bold",
+    fontFamily: "Verdana-Bold",
   },
   recipeLikeRate: {
     alignItems: "flex-start",
@@ -1143,10 +1149,10 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
   recipeLikeRateText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "800",
     color: "#e40754",
-    fontFamily: "GillSans-BoldItalic",
+    fontFamily: "Verdana-BoldItalic",
   },
   video: {
     alignSelf: "center",
@@ -1163,17 +1169,17 @@ const styles = StyleSheet.create({
   },
   recipeIngredientsText: {
     marginTop: 5,
-    fontSize: Platform.OS == "ios" ? 28 : 22,
+    fontSize: Platform.OS == "ios" ? 24 : 22,
     fontWeight: "900",
     color: "#222",
-    fontFamily: Platform.OS == "ios" ? "TimesNewRomanPS-BoldMT" : "",
+    fontFamily: Platform.OS == "ios" ? "Verdana-Bold" : "",
   },
   recipeServingText: {
     marginTop: 3,
-    fontSize: Platform.OS == "ios" ? 17 : 15,
+    fontSize: Platform.OS == "ios" ? 14 : 15,
     fontWeight: "800",
     color: "#222",
-    fontFamily: Platform.OS == "ios" ? "TimesNewRomanPS-BoldMT" : "",
+    fontFamily: Platform.OS == "ios" ? "Verdana-Bold" : "",
   },
   ingredients: {
     shadowOpacity: 0.5,
@@ -1184,27 +1190,27 @@ const styles = StyleSheet.create({
   },
   ingredientsText: {
     marginTop: Platform.OS == "ios" ? 7 : 2,
-    fontSize: Platform.OS == "ios" ? 21 : 18,
+    fontSize: Platform.OS == "ios" ? 18 : 18,
     marginHorizontal: 15,
     color: "#222",
-    fontFamily: Platform.OS == "ios" ? "Times New Roman" : "",
+    fontFamily: Platform.OS == "ios" ? "Verdana" : "",
   },
   recipeInstructionsText: {
     marginTop: 5,
-    fontSize: Platform.OS == "ios" ? 28 : 22,
+    fontSize: Platform.OS == "ios" ? 24 : 22,
     fontWeight: "900",
     color: "#222",
-    fontFamily: Platform.OS == "ios" ? "TimesNewRomanPS-BoldMT" : "",
+    fontFamily: Platform.OS == "ios" ? "Verdana-Bold" : "",
   },
   instructions: {
     margin: 5,
   },
   instructionsText: {
     marginTop: Platform.OS == "ios" ? 5 : 1,
-    fontSize: Platform.OS == "ios" ? 21 : 18,
+    fontSize: Platform.OS == "ios" ? 18 : 18,
     marginHorizontal: Platform.OS == "ios" ? 15 : 10,
     color: "#222",
-    fontFamily: Platform.OS == "ios" ? "Times New Roman" : "",
+    fontFamily: Platform.OS == "ios" ? "Verdana" : "",
   },
   overlay: {
     flex: 1,
